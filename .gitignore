@@ -38,3 +38,9 @@ tmp/
 # Logs
 *.log
 logs/
+
+# Local AI/tool indexes and local databases
+*.db
+*.sqlite
+*.sqlite3
+ruvector.db
