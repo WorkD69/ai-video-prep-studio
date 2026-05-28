@@ -74,13 +74,23 @@ ready for LLM analysis (ChatGPT, Claude, etc.).
 ┌─────────────────────────────────────────┐
 │           POSTGRESQL                    │
 │                                         │
+│  users table                            │
+│    id, email (nullable), tier,          │
+│    created_at                           │
+│                                         │
 │  jobs table                             │
-│    id, status, created_at,              │
-│    original_filename, output_path,      │
-│    error_message, session_id            │
+│    id, user_id (nullable FK),           │
+│    session_id, status,                  │
+│    original_filename, stored_filename,  │
+│    input_path, output_path (nullable),  │
+│    video_size_bytes, duration_seconds,  │
+│    created_at, completed_at, expires_at,│
+│    error_message                        │
 │                                         │
 │  usage_log table                        │
-│    id, job_id, event, timestamp         │
+│    id, job_id (FK), user_id (nullable), │
+│    session_id, minutes_processed,       │
+│    created_at                           │
 └─────────────────────────────────────────┘
 ```
 

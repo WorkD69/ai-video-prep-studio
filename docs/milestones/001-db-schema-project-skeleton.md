@@ -23,7 +23,8 @@
 - SQLAlchemy 2.x models:
   - `users` (id, email nullable unique, tier default "free", created_at)
   - `jobs` (id, user_id nullable FK, session_id, status enum, original_filename,
-    stored_filename, video_size_bytes, duration_seconds nullable,
+    stored_filename, input_path NOT NULL, output_path nullable,
+    video_size_bytes, duration_seconds nullable,
     created_at, completed_at nullable, expires_at, error_message nullable)
   - `usage_log` (id, job_id FK, user_id nullable FK, session_id nullable,
     minutes_processed, created_at)
@@ -61,6 +62,7 @@
 ## 4. Acceptance Criteria
 
 - [ ] SQLAlchemy модели созданы для `users`, `jobs`, `usage_log`
+- [ ] `jobs` model содержит storage path fields: `input_path` (NOT NULL), `output_path` (nullable)
 - [ ] Alembic инициализирован (`alembic.ini` + `alembic/` directory)
 - [ ] Initial migration создаёт все три таблицы
 - [ ] `alembic upgrade head` проходит без ошибок на чистой БД
@@ -155,6 +157,8 @@ docs/agents/backend-agent.md   # убрать "No users table in MVP", доба�
 | status | ENUM | pending/queued/processing/done/failed |
 | original_filename | VARCHAR | NOT NULL |
 | stored_filename | VARCHAR | NOT NULL |
+| input_path | VARCHAR | NOT NULL — путь к сохранённому входному видео |
+| output_path | VARCHAR | nullable — путь к готовому ZIP после обработки |
 | video_size_bytes | BIGINT | nullable |
 | duration_seconds | FLOAT | nullable |
 | created_at | TIMESTAMP | NOT NULL |

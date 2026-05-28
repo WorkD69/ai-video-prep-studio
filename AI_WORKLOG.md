@@ -72,4 +72,21 @@ Future Commercial Phase added to ROADMAP.md. React/Next.js deferred, not forbidd
 
 ---
 
+### 2026-05-28 — Schema-Contract Sync (Codex Process Mentor Review)
+
+**[REVIEW] Codex Process Mentor verdict: PROCEED WITH CAUTION.**
+Schema-contract mismatch identified before Phase B implementation starts.
+
+**[FIX] Added `input_path` / `output_path` to jobs contract across all docs.**
+`input_path` (VARCHAR NOT NULL) — path to the saved input video file.
+`output_path` (VARCHAR nullable) — path to the finished ZIP package after processing.
+Required for future upload/worker/download lifecycle. Added to:
+- docs/milestones/001-db-schema-project-skeleton.md (In Scope, DB Schema Reference, Acceptance Criteria)
+- docs/agents/backend-agent.md (jobs table schema)
+- docs/ARCHITECTURE.md (PostgreSQL diagram block — also synced users + usage_log shape)
+
+**[NOTE] Phase B (implementation) not started. All changes are docs-only.**
+
+---
+
 <!-- Add new entries above this line, newest first within each date block -->
