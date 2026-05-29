@@ -47,29 +47,42 @@ You manage state transitions for: `pending → queued`, `queued → processing` 
 
 **`jobs` table:**
 ```
-id              UUID primary key
-status          Enum(pending, queued, processing, done, failed)
-session_id      String (from cookie or IP hash)
+id                  UUID primary key
+user_id             UUID foreign key → users.id (nullable)
+session_id          String NOT NULL (from cookie or IP hash)
+status              Enum(pending, queued, processing, done, failed)
 original_filename   String (user's filename, stored for display only)
-safe_filename   String (UUID-based, actual stored filename)
-input_path      String (path to uploaded file)
-output_path     String (path to output ZIP, nullable)
-error_message   Text (nullable)
-created_at      DateTime
-updated_at      DateTime
-expires_at      DateTime (created_at + 24h)
+stored_filename     String (UUID-based, actual stored filename)
+input_path          String (path to uploaded file)
+output_path         String (path to output ZIP, nullable)
+video_size_bytes    BigInteger (nullable)
+duration_seconds    Float (nullable — set after ffprobe)
+error_message       Text (nullable)
+created_at          DateTime
+completed_at        DateTime (nullable)
+expires_at          DateTime (created_at + 24h)
 ```
 
-**`usage_log` table:**
+**`users` table:**
 ```
 id          UUID primary key
-job_id      UUID foreign key → jobs.id
-event       String (upload_received, job_queued, processing_started, etc.)
-detail      JSON (nullable, extra context)
+email       String (nullable, unique — populated when user authenticates; NULL for anonymous)
+tier        String (default "free" — reserved for future monetization)
 created_at  DateTime
 ```
 
-No `users` table in MVP (nullable user concept — session-based only).
+Note: `users` is a minimal stub for future auth/monetization. In MVP, all jobs work via
+`session_id`. `jobs.user_id` and `usage_log.user_id` are nullable.
+
+**`usage_log` table:**
+```
+id                UUID primary key
+job_id            UUID foreign key → jobs.id
+user_id           UUID foreign key → users.id (nullable)
+session_id        String (nullable)
+minutes_processed Numeric (nullable)
+created_at        DateTime
+```
 
 ### Alembic Migrations
 

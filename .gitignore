@@ -44,3 +44,5 @@ logs/
 *.sqlite
 *.sqlite3
 ruvector.db
+
+debug_db_connectivity_report.txt
