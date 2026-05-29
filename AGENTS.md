@@ -24,6 +24,8 @@
 - Quality gates are planned (see CLAUDE.md Rule 8)
 - No debug loop in progress (Rule 5)
 - Previous feature branch is merged or parked
+- Reviewer fix loop count has not exceeded 2 cycles (see CLAUDE.md Process Rules)
+- A/B branch is justified by genuine architectural uncertainty (see CLAUDE.md Process Rules)
 
 **Verdict format:**
 ```
@@ -71,6 +73,7 @@ Fix: suggested solution
 - Does NOT merge or deploy
 - Does NOT rewrite code without explicit permission
 - Does NOT carry context from previous sessions
+- Does NOT block merge on Low/Optional findings if High/Critical count is zero and all gates are green
 
 ---
 
