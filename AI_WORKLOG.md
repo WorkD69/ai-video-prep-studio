@@ -7,6 +7,31 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-05-29 — Process Learning Patch: Milestone 001 Retrospective
+
+**[NOTE] Milestone 001 completed: spec → impl → gates → reviewer → fixes → ACCEPT → merge.**
+
+**[REVIEW] Reviewer findings summary:**
+- `.dockerignore` missing (Medium) — fixed
+- Port strategy inconsistency (Medium) — fixed
+- UUID contract not documented (Medium) — fixed
+- Docker canonical gate was implicit — now documented in CLAUDE.md Process Rules
+
+**[NOTE] Windows host psycopg2/cp1251 failure.**
+Host-native DB verification fails on Windows with cp1251 locale.
+Prevention: Docker canonical gate is now the required DB verification method for all milestones.
+
+**[LEARNING] Agent mistakes must become rules or gates.**
+When an agent error or environment failure is discovered during review,
+do not only fix the output — update one of: rule / test / checklist / agent card / quality gate.
+This entry triggered the Process Rules section added to CLAUDE.md.
+
+**[LEARNING] Reviewer fix loop needs a hard limit.**
+Fix cycles extended due to Low/Optional findings without a stop rule.
+Prevention: Max 2 reviewer-fix cycles per milestone. Low/Optional do not block merge if gates green.
+
+---
+
 ### 2026-05-27 — Project Bootstrap
 
 **[DECISION] Project started. Goal locked.**

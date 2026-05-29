@@ -96,6 +96,48 @@ Before using any external code, verify license compatibility (MIT/Apache preferr
 
 ---
 
+## Process Rules
+
+**Agent Mistake Handling**
+If an agent produces an incorrect result, do not just fix the output.
+Create a learning entry in AI_WORKLOG.md and update one of: rule / test / checklist / agent card / quality gate.
+
+**Reviewer Fix Loop Limit**
+Max 2 reviewer-fix cycles per milestone.
+After 2 cycles: stop, summarize, open fresh context, check in with Process Mentor or Architect.
+Low/Optional findings must not block merge if all gates are green and no High/Critical issues remain.
+
+**Canonical Gate — DB/Infrastructure Milestones**
+```
+docker compose run --rm app python -m alembic upgrade head
+docker compose up -d app
+# /health must return: status=ok, db=ok, redis=ok
+```
+Do not run host-native DB verification on Windows with a non-UTF-8 locale.
+
+**New Chat Policy**
+Open a new Claude Code chat for: new feature, new milestone, role change, clean review, debug after 2 failed iterations.
+
+**A/B Branches Policy**
+Use only for genuine architectural uncertainty:
+media pipeline architecture, video splitting strategy, large upload strategy, storage layout, frontend UX, smart screenshot extraction.
+Do NOT use for: reviewer fixes, formatting, small docs edits.
+
+**Skills Policy**
+Do not create a Skill preemptively.
+Create a Skill only if a procedure has repeated ≥2 times or will clearly repeat across milestones.
+
+**MCP Policy**
+Do not connect MCP preemptively.
+MCP must reduce manual work or error risk.
+Backlog: GitHub MCP, DB read-only MCP, docs/browser MCP — for later milestones.
+
+**Language Preference**
+Claude Code responds to the human in Russian.
+File names, commands, code, and logs may remain in English.
+
+---
+
 ## Key Interfaces (Do Not Change Without ADR)
 
 - `Transcriber` → `FasterWhisperTranscriber` / `MockTranscriber`
