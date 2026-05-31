@@ -16,8 +16,8 @@ Before starting any session, read:
 ### FastAPI Routes
 
 You own these endpoints:
-- `POST /upload` — validate file, save to disk, create job in DB, enqueue RQ job, return job_id
-- `GET /status/{job_id}` — return job status from DB (queued/processing/done/failed)
+- `POST /jobs/upload` — validate file, save to disk, create job in DB, return job_id (M002: status=pending only; RQ enqueue deferred to future milestone)
+- `GET /jobs/{job_id}` — return job status and metadata from DB
 - `GET /download/{job_id}` — stream ZIP file if job is done; 410 if expired; 404 if not found
 - `GET /` — serve upload form (Jinja2 template)
 
@@ -49,7 +49,7 @@ You manage state transitions for: `pending → queued`, `queued → processing` 
 ```
 id                  UUID primary key
 user_id             UUID foreign key → users.id (nullable)
-session_id          String NOT NULL (from cookie or IP hash)
+session_id          String NOT NULL (server-generated anonymous UUID4 per upload in M002; do NOT read from X-Session-ID, cookies, or IP hash; trusted/signed session lifecycle deferred to a future auth milestone; metadata only — not an auth/security boundary)
 status              Enum(pending, queued, processing, done, failed)
 original_filename   String (user's filename, stored for display only)
 stored_filename     String (UUID-based, actual stored filename)
@@ -119,7 +119,7 @@ For your domain specifically (full security review is `security-agent`'s job):
 - Validate file type by content (magic bytes), not just extension
 - Validate file size before reading entire file into memory
 - Store uploaded files under `uploads/{uuid}.{ext}`, never under user-provided paths
-- Session ID must be from a signed cookie or HMAC of IP — never from user-supplied header
+- Session ID must never be taken from a user-supplied header; in M002, server generates an anonymous UUID4 per upload; signed sessions and cookies are deferred to a future milestone
 
 ---
 
