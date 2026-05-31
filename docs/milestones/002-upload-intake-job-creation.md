@@ -111,7 +111,7 @@ Full job lifecycle (`pending → queued → processing → done/failed`) is defe
 
 ### GET /jobs/{job_id}
 
-**Path param:** `job_id` — must be a valid UUID4, else 422
+**Path param:** `job_id` — must be a valid UUID, else 422
 
 **Response 200:**
 ```json
@@ -197,7 +197,7 @@ No new migration needed — all fields exist in the `jobs` table from Milestone 
 | `error_message` | `null` on success |
 | `created_at` | `now()` |
 | `completed_at` | `null` |
-| `expires_at` | `null` (cleanup deferred) |
+| `expires_at` | `created_at + 24h` |
 
 ---
 
@@ -276,6 +276,7 @@ logger.error("upload_db_failed", job_id=str(job_id), stage="upload", error=str(e
 - [ ] Missing multipart field → 422
 - [ ] Path traversal filename handled safely
 - [ ] No RQ enqueue, no worker, no ffmpeg
+- [ ] `expires_at` is set to `created_at + 24h`
 - [ ] All 9 test cases pass
 - [ ] Docker gate passes
 

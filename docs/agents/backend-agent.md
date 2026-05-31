@@ -49,7 +49,7 @@ You manage state transitions for: `pending → queued`, `queued → processing` 
 ```
 id                  UUID primary key
 user_id             UUID foreign key → users.id (nullable)
-session_id          String NOT NULL (from cookie or IP hash)
+session_id          String NOT NULL (server-generated anonymous UUID4 per upload in M002; do NOT read from X-Session-ID, cookies, or IP hash; trusted/signed session lifecycle deferred to a future auth milestone; metadata only — not an auth/security boundary)
 status              Enum(pending, queued, processing, done, failed)
 original_filename   String (user's filename, stored for display only)
 stored_filename     String (UUID-based, actual stored filename)
