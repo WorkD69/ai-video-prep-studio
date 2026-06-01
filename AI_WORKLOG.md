@@ -7,6 +7,40 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-01 — Milestone 002B Upload Intake Implementation
+
+**[IMPL] Implemented upload intake and job creation.**
+Added `POST /jobs/upload` and `GET /jobs/{job_id}` with UUID-based storage filenames,
+server-generated anonymous `session_id`, `status = pending`, `expires_at = created_at + 24h`,
+and no RQ/worker/media-processing scope.
+
+**[FIX] Implementation hardening before review.**
+Process Mentor caught an initial-size edge case in streaming upload size enforcement.
+Added `test_upload_too_large_in_initial_header` and ensured `stream_save()` rejects before
+creating a file when the first 8-byte header already exceeds the configured limit.
+
+**[REVIEW] Security Agent verdict: SECURITY ACCEPT WITH CHANGES (Low only).**
+Fixed all Low findings before clean review:
+- removed dead `MAX_FILE_SIZE_MB` / `max_file_size_mb` config,
+- replaced raw DB exception logging with `error_type=type(e).__name__`,
+- removed raw `max_upload_bytes` from 413 HTTP responses,
+- synced the milestone logging example with the safer logging pattern.
+
+**[REVIEW] Codex Reviewer verdict: ACCEPT.**
+No blocking issues found. Residual `datetime.utcnow()` deprecation warnings are known and
+deferred to a separate cleanup because existing SQLAlchemy models already use that pattern.
+
+**[NOTE] Gates passed.**
+`pytest tests/ -v` passed with 15 tests. Docker gate passed:
+Alembic upgrade, `docker compose up -d --build app`, `/health`, manual upload smoke,
+and `GET /jobs/{job_id}` all succeeded.
+
+**[LEARNING] Upload milestones need atomicity and edge-size tests.**
+For future upload/file milestones, include tests for DB failure after file save, partial-file
+cleanup on 413, and size rejection before writing when the initial header exceeds the limit.
+
+---
+
 ### 2026-05-29 — Process Learning Patch: Milestone 001 Retrospective
 
 **[NOTE] Milestone 001 completed: spec → impl → gates → reviewer → fixes → ACCEPT → merge.**
