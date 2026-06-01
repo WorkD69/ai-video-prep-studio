@@ -245,7 +245,7 @@ All log calls must include `job_id` and `stage` per project rules:
 ```python
 logger.info("upload_started", stage="upload", filename=original_filename)
 logger.info("upload_saved", job_id=str(job.id), stage="upload", bytes=video_size_bytes)
-logger.error("upload_db_failed", job_id=str(job_id), stage="upload", error=str(e))
+logger.error("upload_db_failed", job_id=str(job_id), stage="upload", error_type=type(e).__name__)
 ```
 
 ---

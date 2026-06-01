@@ -6,7 +6,8 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     secret_key: str
     debug: bool = False
-    max_file_size_mb: int = 500
+    upload_dir: str = "./uploads"
+    max_upload_bytes: int = 524288000  # 500 MB
 
     model_config = SettingsConfigDict(
         env_file=".env",
