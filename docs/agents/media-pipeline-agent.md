@@ -165,9 +165,11 @@ These segments were excluded from the main transcript.
 
 | Global Start | Global End | Reason |
 |---|---|---|
-| 00:00:30 | 00:00:45 | silent (no_speech_prob=0.85) |
-| 00:12:00 | 00:12:15 | empty text |
+| 00:00:30 | 00:00:45 | silent (no_speech_prob=0.85); empty text |
 ```
+
+If multiple exclusion conditions apply to the same segment, combine them in one deterministic
+reason string in the order shown above.
 
 **`metadata.json`**
 ```json
