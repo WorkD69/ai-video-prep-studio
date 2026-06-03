@@ -188,8 +188,11 @@ Required for future upload/worker/download lifecycle. Added to:
   added 3 enqueue tests (happy, 503, race re-read).
 
 **[NOTE] Gates passed.**
-`pytest tests/ -v` passed with 28 tests (was 15 + 4 health). Docker canonical gate pending
-manual run. All `datetime.utcnow()` deprecation warnings are pre-existing pattern, deferred.
+`pytest tests/ -v` passed with 28 tests (was 15 + 4 health). Docker canonical gate passed:
+`docker compose run --rm app python -m alembic upgrade head`, `docker compose up -d app`,
+and `Invoke-RestMethod http://localhost:8000/health | ConvertTo-Json` returned
+`status=ok`, `db=ok`, and `redis=ok`. All `datetime.utcnow()` deprecation warnings are
+pre-existing pattern, deferred.
 
 **[NOTE] Residual risk accepted.**
 Orphan `pending` on crash between `db.commit()` and `enqueue()` — documented in spec,
