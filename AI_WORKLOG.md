@@ -167,4 +167,32 @@ Required for future upload/worker/download lifecycle. Added to:
 
 ---
 
+### 2026-06-02 — Milestone 003 RQ Worker + Mock Processing
+
+**[IMPL] Implemented RQ enqueue + mock worker lifecycle.**
+- `app/config.py`: added 5 optional settings (`rq_queue_name`, `rq_job_timeout`,
+  `mock_processing_delay_seconds`, `mock_force_fail`, `mock_failure_trigger_enabled`).
+  All default to safe production values (failure triggers off).
+- `app/redis_client.py`: added `get_queue()` helper returning `rq.Queue` over `redis_url`.
+- `app/workers/process_job.py` (new): `process_job(job_id)` with guarded transitions
+  `pending|queued -> processing -> done|failed`, idempotency, filename-based + global
+  failure triggers, re-raise for RQ failed registry, isolated `SessionLocal` session.
+- `app/api/jobs.py`: enqueue after initial commit; guarded flip `pending -> queued`;
+  re-read on race (flip 0 rows); compensation `pending -> failed` + HTTP 503 on enqueue failure.
+- `docker-compose.yml`: added `volumes: ./uploads:/app/uploads` + `./outputs:/app/outputs`
+  to `worker` service (service itself already existed from prior milestone).
+- `tests/test_worker.py` (new): 10 worker tests covering happy path, idempotency,
+  guarded noop on wrong status, both failure triggers, production safety of filename trigger.
+- `tests/test_upload.py`: added `execute()` support to `MockDB`; updated all upload fixtures
+  to mock `get_queue`; updated `test_upload_happy_path` to expect `queued` (was `pending`);
+  added 3 enqueue tests (happy, 503, race re-read).
+
+**[NOTE] Gates passed.**
+`pytest tests/ -v` passed with 28 tests (was 15 + 4 health). Docker canonical gate pending
+manual run. All `datetime.utcnow()` deprecation warnings are pre-existing pattern, deferred.
+
+**[NOTE] Residual risk accepted.**
+Orphan `pending` on crash between `db.commit()` and `enqueue()` — documented in spec,
+reaper out of scope M003. `output_path=NULL` on `done` mock jobs — expected, no artifact yet.
+
 <!-- Add new entries above this line, newest first within each date block -->

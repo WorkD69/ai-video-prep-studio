@@ -12,19 +12,26 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
 
   worker:
     build: .
-    command: rq worker --url redis://redis:6379/0 default
+    command: rq worker default
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aivps
       - REDIS_URL=redis://redis:6379/0
+      - RQ_REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-set-SECRET_KEY-env-var}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
 
   postgres:
     image: postgres:15-alpine
