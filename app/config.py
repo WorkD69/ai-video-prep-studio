@@ -8,6 +8,11 @@ class Settings(BaseSettings):
     debug: bool = False
     upload_dir: str = "./uploads"
     max_upload_bytes: int = 524288000  # 500 MB
+    rq_queue_name: str = "default"
+    rq_job_timeout: int = 600
+    mock_processing_delay_seconds: int = 0
+    mock_force_fail: bool = False
+    mock_failure_trigger_enabled: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

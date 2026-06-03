@@ -1,4 +1,5 @@
 import redis as redis_lib
+import rq
 from app.config import settings
 
 
@@ -11,3 +12,8 @@ def check_redis() -> bool:
         return bool(get_redis().ping())
     except Exception:
         return False
+
+
+def get_queue() -> rq.Queue:
+    conn = redis_lib.from_url(settings.redis_url)
+    return rq.Queue(settings.rq_queue_name, connection=conn)
