@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     secret_key: str
     debug: bool = False
     upload_dir: str = "./uploads"
+    output_dir: str = "./outputs"
     max_upload_bytes: int = 524288000  # 500 MB
     rq_queue_name: str = "default"
     rq_job_timeout: int = 600

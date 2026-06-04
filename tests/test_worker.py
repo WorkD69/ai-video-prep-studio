@@ -1,6 +1,7 @@
 import os
 from datetime import datetime, timedelta
-from unittest.mock import patch
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -115,23 +116,28 @@ def test_worker_happy_path_done():
     # execute call 2: guarded -> done (rowcount=1)
     mock_db.set_rowcounts(1, 1)
 
-    with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
-        process_job(str(job.id))
+    fake_zip = Path("/tmp/fake.zip")
+    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+            process_job(str(job.id))
 
     assert mock_db.commit_count == 2
     assert len(mock_db.execute_calls) == 2
     assert job.status == JobStatus.done
     assert job.completed_at is not None
+    assert job.output_path == str(fake_zip)
 
 
 def test_worker_picks_pending_or_queued():
+    fake_zip = Path("/tmp/fake.zip")
     for initial_status in (JobStatus.pending, JobStatus.queued):
         job = make_job(initial_status)
         mock_db = WorkerMockSession(job)
         mock_db.set_rowcounts(1, 1)
 
-        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
-            process_job(str(job.id))
+        with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+            with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+                process_job(str(job.id))
 
         assert mock_db.commit_count == 2
         assert job.status == JobStatus.done
@@ -209,9 +215,11 @@ def test_worker_filename_fail_trigger_disabled_by_default():
         "mock_failure_trigger_enabled": False,  # default production config
     })()
 
-    with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
-        with patch("app.workers.process_job.settings", fake_settings):
-            process_job(str(job.id))  # must NOT raise
+    fake_zip = Path("/tmp/fake.zip")
+    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+            with patch("app.workers.process_job.settings", fake_settings):
+                process_job(str(job.id))  # must NOT raise
 
     assert len(mock_db.execute_calls) == 2
     assert mock_db.commit_count == 2
@@ -262,8 +270,10 @@ def test_worker_success_guarded_does_not_overwrite_non_processing():
     # No hook for execute 1; race fires just before execute 2
     mock_db._execute_side_effects = [None, simulate_race_failed]
 
-    with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
-        process_job(str(job.id))  # must NOT raise
+    fake_zip = Path("/tmp/fake.zip")
+    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+            process_job(str(job.id))  # must NOT raise
 
     assert len(mock_db.execute_calls) == 2
     # done was NOT written — existing failed state is preserved
@@ -307,3 +317,39 @@ def test_worker_failure_guarded_does_not_overwrite_non_processing():
     assert job.status == JobStatus.done
     assert job.error_message is None
     assert job.completed_at == race_dt
+
+
+def test_worker_success_sets_output_path():
+    """After a successful run, job.output_path must be a non-null string."""
+    job = make_job(JobStatus.queued)
+    mock_db = WorkerMockSession(job)
+    mock_db.set_rowcounts(1, 1)
+
+    fake_zip = Path("/tmp/output/llm_package.zip")
+    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+            process_job(str(job.id))
+
+    assert job.status == JobStatus.done
+    assert job.output_path is not None
+    assert isinstance(job.output_path, str)
+    assert job.output_path == str(fake_zip)
+
+
+def test_worker_pipeline_failure_marks_failed():
+    """If run_mock_output_pipeline raises, job ends up failed and exception re-raised."""
+    job = make_job(JobStatus.queued)
+    mock_db = WorkerMockSession(job)
+    mock_db.set_rowcounts(1, 1)  # transition + failure write
+
+    with patch(
+        "app.workers.process_job.run_mock_output_pipeline",
+        side_effect=RuntimeError("pipeline_exploded"),
+    ):
+        with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
+            with pytest.raises(RuntimeError, match="pipeline_exploded"):
+                process_job(str(job.id))
+
+    assert job.status == JobStatus.failed
+    assert job.error_message == "processing_failed"
+    assert job.completed_at is not None
