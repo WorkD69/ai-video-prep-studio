@@ -198,4 +198,38 @@ pre-existing pattern, deferred.
 Orphan `pending` on crash between `db.commit()` and `enqueue()` — documented in spec,
 reaper out of scope M003. `output_path=NULL` on `done` mock jobs — expected, no artifact yet.
 
+---
+
+### 2026-06-04 — Milestone 004 Media Pipeline Output Assembly
+
+**[IMPL] Implemented MockTranscriber-backed ZIP output pipeline.**
+- `app/pipeline/transcriber.py`: added ADR 003 `TranscriptSegment`, `Transcriber`, and locked
+  `MockTranscriber` 5-segment fixture.
+- `app/pipeline/timecodes.py` and `app/pipeline/silence.py`: added global timecode formatting,
+  active/silent classification, and deterministic failed/silent reason strings.
+- `app/pipeline/output_assembly.py`: added transcript MD/JSON, lecture summary input,
+  screenshots manifest CSV, failed/silent report, and metadata JSON builders.
+- `app/pipeline/zip_packaging.py`: added safe ZIP stem sanitization, fixed archive entries,
+  placeholder screenshot files, and partial-ZIP cleanup on failure.
+- `app/pipeline/mock_pipeline.py`: added per-job staging orchestration with `try/finally` cleanup
+  and ZIP generation under `outputs/`.
+- `app/workers/process_job.py`: replaced sleep-only mock success with `run_mock_output_pipeline(job)`
+  and guarded `done` update that persists `output_path`.
+- `app/config.py`: added `output_dir`.
+- Tests added under `tests/unit/` and `tests/integration/`; worker tests now cover `output_path`
+  success and pipeline failure.
+
+**[NOTE] Gates passed.**
+`python -m pytest tests/ -v --tb=short` passed with 126 tests. Docker canonical gate passed after
+rebuilding app/worker images: `docker compose run --rm app python -m alembic upgrade head`,
+`docker compose up -d --build app worker`, and `/health` returned `status=ok`, `db=ok`,
+`redis=ok`. Manual smoke upload reached `done`; DB `output_path` was set to
+`/app/outputs/llm_analysis_package_m004-smoke_20260604_120700.zip`; ZIP entries and screenshot
+count invariants were verified; per-job staging cleanup left no files behind.
+
+**[NOTE] Residual risks accepted.**
+M004 still uses placeholder screenshots and MockTranscriber only. Real ffmpeg/ffprobe,
+faster-whisper, download endpoint, UI, 1-active-job limit, and 24h cleanup remain out of scope.
+Existing `datetime.utcnow()` deprecation warnings remain deferred.
+
 <!-- Add new entries above this line, newest first within each date block -->

@@ -6,6 +6,7 @@ from sqlalchemy import update
 from app.config import settings
 from app.database import SessionLocal
 from app.models.job import Job, JobStatus
+from app.pipeline.mock_pipeline import run_mock_output_pipeline
 
 logger = structlog.get_logger()
 
@@ -46,11 +47,17 @@ def process_job(job_id: str) -> None:
         if should_fail:
             raise RuntimeError("mock_processing_failure")
 
+        zip_path = run_mock_output_pipeline(job)
+
         # Guarded success write: processing -> done
         result = db.execute(
             update(Job)
             .where(Job.id == job.id, Job.status == JobStatus.processing)
-            .values(status=JobStatus.done, completed_at=datetime.utcnow())
+            .values(
+                status=JobStatus.done,
+                completed_at=datetime.utcnow(),
+                output_path=str(zip_path),
+            )
         )
         db.commit()
 
