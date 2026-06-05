@@ -1,4 +1,4 @@
-# AI Video Prep Studio — AGENTS.md
+# AI Video Prep Studio - AGENTS.md
 
 > All coding rules, quality gates, and stack decisions are in **CLAUDE.md**.
 > This file defines the AI agent roles and Codex process roles only.
@@ -29,9 +29,9 @@
 
 **Verdict format:**
 ```
-PROCEED — all gates clear
-PROCEED WITH CAUTION — [specific issue]
-STOP — [reason, required action]
+PROCEED - all gates clear
+PROCEED WITH CAUTION - [specific issue]
+STOP - [reason, required action]
 ```
 
 **Constraints:**
@@ -56,9 +56,9 @@ STOP — [reason, required action]
 
 **Verdict format:**
 ```
-ACCEPT — no issues found
-ACCEPT WITH CHANGES — [numbered findings, each with severity and fix]
-REJECT — [numbered findings, blocking issues highlighted]
+ACCEPT - no issues found
+ACCEPT WITH CHANGES - [numbered findings, each with severity and fix]
+REJECT - [numbered findings, blocking issues highlighted]
 ```
 
 **Finding format:**
@@ -92,11 +92,9 @@ Agent cards live in `docs/agents/`. Full details in their respective files.
 ---
 
 ## Session Startup Checklist
-
-Before starting any implementation session:
-
-1. Read CLAUDE.md (rules + stack)
-2. Identify which agent card applies
-3. Read that agent card
-4. Confirm branch name follows `feature/<name>` convention
-5. Activate Codex Process Mentor with current status
+1. Read `PROJECT_STATE.md` for current milestone, branch, blockers, and next step.
+2. Read `AI_HANDOFF.md` if it exists; overwrite it before closing a session.
+3. Read `CLAUDE.md` for rules and stack.
+4. Identify the agent card and read `docs/agents/<agent>.md`.
+5. Run `git status` and `git log --oneline -5`.
+6. Activate Codex Process Mentor. Do not include state files in clean Reviewer/Security prompts.
