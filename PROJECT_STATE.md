@@ -13,10 +13,10 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `docs/process-session-state-files` |
-| Main branch | `main` is synced with `origin/main` |
-| Current task | Process documentation for session state files |
-| Status | Planning / docs-only cleanup |
+| Active branch | `docs/update-state-after-process-docs` |
+| Main branch | `main` is synced with `origin/main` through PR #10 |
+| Current task | Post-merge state file update |
+| Status | Docs-only cleanup |
 | Blockers | None |
 
 ## Recently Completed
@@ -28,6 +28,7 @@ milestone status, blockers, or next step changes.
 | M003 - RQ worker mock processing | #5, #6 | Done |
 | M004 - Media pipeline output assembly | #7, #8 | Done |
 | M005 spec - Download endpoint | #9 | Done |
+| Process state files | #10 | Done |
 
 ## MVP 1 Remaining Scope
 
@@ -42,7 +43,7 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-Choose one next branch after this process-docs PR is merged:
+After this state-update branch is merged, choose one branch:
 
 1. `feature/ci-setup` - add GitHub Actions before more implementation.
 2. `feature/milestone-005-download-endpoint` - implement the already merged M005 spec.

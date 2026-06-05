@@ -11,22 +11,19 @@ history.
 
 ## Current Branch
 
-`docs/process-session-state-files`
+`docs/update-state-after-process-docs`
 
 ## Current Work
 
-Add lightweight process-state files so future sessions can orient quickly:
-
-- `PROJECT_STATE.md` - live project snapshot and next-step decision.
-- `AI_HANDOFF.md` - current handoff between sessions.
-- `AGENTS.md` - startup checklist now points agents to those files.
+Update process state files after PR #10 was merged and cleaned up.
 
 ## Completed Before This Handoff
 
 - M004 implementation merged via PR #8.
 - M005 download endpoint spec merged via PR #9.
-- Local `main` was synced after PR #9.
-- M005 spec branch was deleted locally and remotely.
+- Process state files merged via PR #10.
+- Local `main` was synced after PR #10.
+- The `docs/process-session-state-files` branch was deleted locally and remotely.
 
 ## Important Current Caveat
 
@@ -35,12 +32,11 @@ Do not include them in clean Codex Reviewer or Security Agent prompts.
 
 ## Next Step
 
-Finish this process-docs branch:
+Finish this state-update branch:
 
-1. Review `AGENTS.md`, `PROJECT_STATE.md`, and `AI_HANDOFF.md`.
-2. Commit only these three files.
-3. Open a docs/process PR to `main`.
-4. After merge, choose the next feature branch:
+1. Commit only `PROJECT_STATE.md` and `AI_HANDOFF.md`.
+2. Open a small docs PR to `main`.
+3. After merge, choose the next feature branch:
    - `feature/ci-setup`, or
    - `feature/milestone-005-download-endpoint`.
 
@@ -48,4 +44,4 @@ Finish this process-docs branch:
 
 - Do not start M005 implementation in this branch.
 - Do not start CI setup in this branch.
-- Do not mix process-doc changes with product/code changes.
+- Do not mix state-file updates with product/code changes.
