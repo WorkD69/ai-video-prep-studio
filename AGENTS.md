@@ -1,4 +1,4 @@
-# AI Video Prep Studio — AGENTS.md
+# AI Video Prep Studio - AGENTS.md
 
 > All coding rules, quality gates, and stack decisions are in **CLAUDE.md**.
 > This file defines the AI agent roles and Codex process roles only.
@@ -29,9 +29,9 @@
 
 **Verdict format:**
 ```
-PROCEED — all gates clear
-PROCEED WITH CAUTION — [specific issue]
-STOP — [reason, required action]
+PROCEED - all gates clear
+PROCEED WITH CAUTION - [specific issue]
+STOP - [reason, required action]
 ```
 
 **Constraints:**
@@ -56,9 +56,9 @@ STOP — [reason, required action]
 
 **Verdict format:**
 ```
-ACCEPT — no issues found
-ACCEPT WITH CHANGES — [numbered findings, each with severity and fix]
-REJECT — [numbered findings, blocking issues highlighted]
+ACCEPT - no issues found
+ACCEPT WITH CHANGES - [numbered findings, each with severity and fix]
+REJECT - [numbered findings, blocking issues highlighted]
 ```
 
 **Finding format:**
