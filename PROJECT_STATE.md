@@ -13,10 +13,10 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `docs/update-state-after-m005` |
-| Main branch | `main` includes merged PR #13 |
-| Current task | Post-merge state file update after M005 |
-| Status | Docs/process cleanup |
+| Active branch | `feature/milestone-006-job-status-page` |
+| Main branch | `main` includes merged M006 spec (PR #15) |
+| Current task | M006 implementation — ready for PR |
+| Status | Implementation complete; tests, security, reviewer, and manual smoke green |
 | Blockers | None |
 
 ## Recently Completed
@@ -31,12 +31,14 @@ milestone status, blockers, or next step changes.
 | Process state files | #10, #11 | Done |
 | GitHub Actions CI | #12 | Done |
 | M005 implementation - Download endpoint | #13 | Done |
+| M006 spec - Job status page | #15 | Done |
+| M006 implementation - Job status page | — | Implementation done, PR pending |
 
 ## MVP 1 Remaining Scope
 
 - [x] GitHub Actions CI
 - [x] M005 implementation: `GET /download/{job_id}`
-- [ ] Job status page with HTMX polling
+- [ ] **M006: Job status page with HTMX polling** ← current, ready for PR + merge
 - [ ] 24h file retention + cleanup
 - [ ] 1 active job per session/IP
 - [ ] Real ffmpeg screenshots
@@ -45,13 +47,10 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-Finish this docs/process cleanup branch, then pick the next MVP 1 item via Process Mentor.
-
-Likely next candidates:
-
-1. Job status page with HTMX polling.
-2. 24h file retention + cleanup.
-3. 1 active job per session/IP.
+1. Commit and push `feature/milestone-006-job-status-page`.
+2. Open PR to `main`.
+3. After GitHub Actions CI is green, run Process Mentor merge readiness check.
+4. After human merge, update state and pick next MVP 1 item.
 
 ## Known Technical Debt
 

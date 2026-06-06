@@ -1,0 +1,66 @@
+{% if is_polling %}
+<div id="status-card"
+     class="bg-white rounded-lg shadow-md p-8"
+     hx-get="/status/{{ job_id }}/fragment"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     hx-target="this">
+{% else %}
+<div id="status-card" class="bg-white rounded-lg shadow-md p-8">
+{% endif %}
+
+    <h2 class="text-lg font-semibold text-gray-700 mb-4 truncate">{{ job.original_filename }}</h2>
+
+    {% if job.status.value == "pending" %}
+    <div class="flex items-center gap-3 text-gray-500">
+        <svg class="animate-spin h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span>Preparing job…</span>
+    </div>
+
+    {% elif job.status.value == "queued" %}
+    <div class="flex items-center gap-3 text-gray-500">
+        <svg class="animate-spin h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span>Waiting in queue…</span>
+    </div>
+
+    {% elif job.status.value == "processing" %}
+    <div class="flex items-center gap-3 text-blue-600">
+        <svg class="animate-spin h-5 w-5 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span>Processing video…</span>
+    </div>
+
+    {% elif job.status.value == "done" %}
+    <div class="flex items-center gap-3 text-green-600 mb-6">
+        <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span class="font-semibold text-lg">Ready</span>
+    </div>
+    <a href="/download/{{ job_id }}"
+       class="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+        Download Package
+    </a>
+
+    {% elif job.status.value == "failed" %}
+    <div class="flex items-center gap-3 text-red-600 mb-4">
+        <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+        <span class="font-semibold">Processing failed</span>
+    </div>
+    {% if job.error_message %}
+    <p class="text-sm text-red-500 mt-2 font-mono">{{ job.error_message }}</p>
+    {% endif %}
+
+    {% endif %}
+
+</div>
