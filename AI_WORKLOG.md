@@ -257,7 +257,12 @@ ZIP entries.
 
 **[NOTE] Residual risks accepted for now.**
 The implementation follows the existing naive `datetime.utcnow()` pattern documented as deferred
-technical debt. Download corruption/invariant cases are covered by pytest. Clean security and
-reviewer passes are still pending before merge.
+technical debt. Download corruption/invariant cases are covered by pytest.
+
+**[REVIEW] Clean gates passed and PR #13 merged.**
+Security Agent returned `SECURITY APPROVED - no security issues found`. Codex Reviewer returned
+`ACCEPT - no issues found` and re-ran `python -m pytest tests/test_download.py -q --tb=short`
+with 12 passing tests. GitHub Actions `pytest` succeeded on PR #13. PR #13 was merged into
+`main` on 2026-06-06.
 
 <!-- Add new entries above this line, newest first within each date block -->

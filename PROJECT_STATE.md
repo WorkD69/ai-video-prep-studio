@@ -13,11 +13,11 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `feature/milestone-005-download-endpoint` |
-| Main branch | `main` is synced with `origin/main` through PR #12 |
-| Current task | M005 implementation: `GET /download/{job_id}` |
-| Status | Implementation complete; local and Docker/manual gates green |
-| Blockers | Security Agent and Codex Reviewer still pending |
+| Active branch | `docs/update-state-after-m005` |
+| Main branch | `main` includes merged PR #13 |
+| Current task | Post-merge state file update after M005 |
+| Status | Docs/process cleanup |
+| Blockers | None |
 
 ## Recently Completed
 
@@ -30,11 +30,12 @@ milestone status, blockers, or next step changes.
 | M005 spec - Download endpoint | #9 | Done |
 | Process state files | #10, #11 | Done |
 | GitHub Actions CI | #12 | Done |
+| M005 implementation - Download endpoint | #13 | Done |
 
 ## MVP 1 Remaining Scope
 
 - [x] GitHub Actions CI
-- [ ] M005 implementation: `GET /download/{job_id}`
+- [x] M005 implementation: `GET /download/{job_id}`
 - [ ] Job status page with HTMX polling
 - [ ] 24h file retention + cleanup
 - [ ] 1 active job per session/IP
@@ -44,13 +45,13 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-Finish M005 implementation first:
+Finish this docs/process cleanup branch, then pick the next MVP 1 item via Process Mentor.
 
-1. Run Security Agent clean review.
-2. Run Codex Reviewer clean review.
-3. Commit, push, PR, and human merge if all gates pass.
+Likely next candidates:
 
-After M005, pick the next MVP 1 item via Process Mentor.
+1. Job status page with HTMX polling.
+2. 24h file retention + cleanup.
+3. 1 active job per session/IP.
 
 ## Known Technical Debt
 
