@@ -13,10 +13,10 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `feature/milestone-006-job-status-page` |
-| Main branch | `main` includes merged M006 spec (PR #15) |
-| Current task | M006 implementation — ready for PR |
-| Status | Implementation complete; tests, security, reviewer, and manual smoke green |
+| Active branch | `docs/update-state-after-m006` |
+| Main branch | `main` includes merged M006 implementation (PR #16) |
+| Current task | Post-merge state file update after M006 |
+| Status | Docs/process cleanup |
 | Blockers | None |
 
 ## Recently Completed
@@ -32,13 +32,13 @@ milestone status, blockers, or next step changes.
 | GitHub Actions CI | #12 | Done |
 | M005 implementation - Download endpoint | #13 | Done |
 | M006 spec - Job status page | #15 | Done |
-| M006 implementation - Job status page | — | Implementation done, PR pending |
+| M006 implementation - Job status page | #16 | Done |
 
 ## MVP 1 Remaining Scope
 
 - [x] GitHub Actions CI
 - [x] M005 implementation: `GET /download/{job_id}`
-- [ ] **M006: Job status page with HTMX polling** ← current, ready for PR + merge
+- [x] M006: Job status page with HTMX polling
 - [ ] 24h file retention + cleanup
 - [ ] 1 active job per session/IP
 - [ ] Real ffmpeg screenshots
@@ -47,15 +47,20 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-1. Commit and push `feature/milestone-006-job-status-page`.
-2. Open PR to `main`.
-3. After GitHub Actions CI is green, run Process Mentor merge readiness check.
-4. After human merge, update state and pick next MVP 1 item.
+Finish this docs/process cleanup branch, then pick the next MVP 1 item via Process Mentor.
+
+Likely next candidates:
+
+1. 24h file retention + cleanup.
+2. 1 active job per session/IP.
+3. Real ffmpeg screenshots.
+4. Real faster-whisper transcription.
 
 ## Known Technical Debt
 
 - `datetime.utcnow()` deprecation warnings remain deferred.
 - M004 uses mock transcription and mock screenshots; real media processing remains deferred.
+- Inline HTMX upload error display remains deferred by the M006 spec.
 
 ## Process Notes
 

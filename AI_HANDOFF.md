@@ -19,60 +19,59 @@ Use `AGENTS.md` for process roles. Respond to Artem in Russian.
 
 ## Current Branch
 
-`feature/milestone-006-job-status-page`
+`docs/update-state-after-m006`
+
+## Current Working Tree
+
+Docs/process-state update after M006 merge:
+
+- `PROJECT_STATE.md` - marks M006 implementation as done and recommends selecting next MVP item.
+- `AI_HANDOFF.md` - this handoff.
+
+No runtime code changes are expected on this branch.
+
+---
 
 ## What Was Done In This Session
 
-Implemented M006 - browser-facing frontend layer with a full TDD cycle.
+- M006 implementation PR #16 was merged into `main`.
+- Local `main` was updated to include merge commit `93f4886`.
+- The feature branch `feature/milestone-006-job-status-page` was deleted locally and remotely.
+- This docs/process branch was created: `docs/update-state-after-m006`.
+- `PROJECT_STATE.md` and `AI_HANDOFF.md` were updated to reflect M006 completion.
 
-Files created:
-- `tests/test_pages.py` - 16 deterministic tests (confirmed RED first)
-- `app/api/pages.py` - `GET /`, `GET /status/{job_id}`, `GET /status/{job_id}/fragment`
-- `app/templates/base.html` - HTML shell with Tailwind CDN and HTMX CDN
-- `app/templates/index.html` - upload form with HTMX attributes
-- `app/templates/status.html` - full status page
-- `app/templates/partials/status_card.html` - HTMX polling fragment
+M006 gates before merge:
 
-Files modified:
-- `app/api/jobs.py` - added `Request` param and `HX-Redirect` for HTMX uploads
-- `app/main.py` - added `pages_router`
-- `requirements.txt` - added `jinja2>=3.0,<4.0`
-- `AI_WORKLOG.md`, `PROJECT_STATE.md`, `AI_HANDOFF.md` - updated M006 state
-
-Gates passed:
-- RED confirmed first: status/page tests failed before routes/templates existed.
-- `python -m pytest tests/test_pages.py -q --tb=short` -> 16 passed.
-- `python -m pytest tests/ -q --tb=short` -> 154 passed.
-- `git diff --check` -> clean except Windows CRLF warnings.
 - Security Agent: `SECURITY APPROVED - no security issues found`.
 - Codex Reviewer: `ACCEPT - no issues found`.
+- GitHub Actions CI: `pytest` succeeded on PR #16.
+- Local tests passed: `python -m pytest tests/test_pages.py -q --tb=short` -> 16 passed.
+- Full local tests passed: `python -m pytest tests/ -q --tb=short` -> 154 passed.
 - Docker/manual browser smoke passed: health OK, upload form rendered, browser upload redirected
   to `/status/{job_id}`, polling reached `done`, download button appeared, ZIP downloaded.
-- Downloaded ZIP verified: valid archive, all required entries present, metadata screenshot count
-  equals manifest rows and screenshot files.
 
 ---
 
 ## Exact Current Stop Point
 
-M006 implementation is ready to commit, push, and open a PR.
+M006 is merged. Current branch is a docs/process-state cleanup branch.
 
-Do not start the next milestone in this branch.
+Do not start the next implementation in this branch.
 
 ---
 
 ## Next Action
 
-1. Commit all M006 implementation and process-state changes.
-2. Push `feature/milestone-006-job-status-page`.
-3. Open a PR to `main`.
-4. After GitHub Actions CI is green, ask Process Mentor to check merge readiness.
+1. Commit only the process-state docs updates.
+2. Push `docs/update-state-after-m006`.
+3. Open a small PR to `main` and merge after CI is green.
+4. After merge, sync `main`, delete the docs branch if desired, and ask Process Mentor to pick
+   the next MVP 1 item.
 
 ---
 
 ## Open Questions / Decisions Not Captured Elsewhere
 
-- Windows pytest temp cleanup `PermissionError` appears after successful runs; exit code 0,
-  known local issue, not a blocker.
-- `datetime.utcnow()` deprecation warnings are pre-existing deferred debt.
+- `datetime.utcnow()` warnings remain deferred technical debt.
+- M004 still uses mock transcription and mock screenshots; real media processing remains deferred.
 - Inline HTMX upload error display remains deferred by the M006 spec.
