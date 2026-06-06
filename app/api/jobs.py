@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -27,9 +28,10 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.post("/upload", status_code=201, response_model=UploadResponse)
 async def upload_video(
+    request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-) -> UploadResponse:
+) -> UploadResponse | Response:
     validate_content_type(file.content_type or "")
     safe_ext = validate_extension(file.filename or "")
 
@@ -123,6 +125,12 @@ async def upload_video(
         db.refresh(job)
     else:
         job.status = JobStatus.queued
+
+    if request.headers.get("HX-Request") == "true":
+        return Response(
+            status_code=200,
+            headers={"HX-Redirect": f"/status/{job.id}"},
+        )
 
     return UploadResponse(
         job_id=job.id,

@@ -265,4 +265,44 @@ Security Agent returned `SECURITY APPROVED - no security issues found`. Codex Re
 with 12 passing tests. GitHub Actions `pytest` succeeded on PR #13. PR #13 was merged into
 `main` on 2026-06-06.
 
+### 2026-06-06 — Milestone 006 Job Status Page with HTMX Polling
+
+**[IMPL] Implemented browser-facing frontend layer.**
+- `app/api/pages.py` (new): three HTML routes — `GET /` (upload form), `GET /status/{job_id}`
+  (full status page), `GET /status/{job_id}/fragment` (HTMX polling fragment). Uses
+  `Jinja2Templates` with path resolved relative to `__file__` for Docker portability.
+- `app/templates/base.html` (new): HTML shell with Tailwind CDN and HTMX CDN.
+- `app/templates/index.html` (new): upload form with `hx-post="/jobs/upload"` and
+  `hx-encoding="multipart/form-data"`.
+- `app/templates/status.html` (new): full status page extending `base.html`, includes
+  `partials/status_card.html`.
+- `app/templates/partials/status_card.html` (new): status card fragment. Conditionally
+  renders HTMX polling attributes (`hx-get`, `hx-trigger="every 2s"`) only for non-terminal
+  statuses (`pending`, `queued`, `processing`). Terminal statuses (`done`, `failed`) render
+  without polling — HTMX stops automatically. XSS-safe: all user-supplied fields
+  (`original_filename`, `error_message`) rendered through Jinja2 auto-escaping.
+- `app/api/jobs.py`: added `Request` parameter to `upload_video()`; added `HX-Request`
+  header detection — returns `200 + HX-Redirect: /status/{job_id}` for HTMX clients,
+  existing 201 JSON for non-HTMX clients.
+- `app/main.py`: included `pages_router`.
+- `requirements.txt`: added `jinja2>=3.0,<4.0`.
+- `tests/test_pages.py` (new): 16 deterministic tests covering all routes, polling behavior,
+  HTMX redirect, XSS escaping. TDD red state confirmed before implementation.
+
+**[NOTE] Gates passed.**
+TDD: confirmed 13+ RED before implementation. After implementation:
+`python -m pytest tests/test_pages.py -q --tb=short` → 16 passed.
+`python -m pytest tests/ -q --tb=short` → 154 passed (all M001–M005 regression tests green).
+`git diff --check` → no whitespace issues.
+Security Agent returned `SECURITY APPROVED - no security issues found`. Codex Reviewer returned
+`ACCEPT - no issues found`.
+Docker/manual browser smoke passed: `/health` was OK, `GET /` returned the HTMX upload form,
+browser upload redirected to `/status/{job_id}`, polling reached `done`, the download button
+appeared, and the downloaded ZIP was valid with all required package entries and 4 screenshots.
+
+**[NOTE] Residual deprecation warning in TemplateResponse API.**
+`starlette.templating.TemplateResponse(name, {"request": request})` signature is deprecated in
+Starlette 0.41+. Fixed in `pages.py` to use `TemplateResponse(request, name, context)`.
+Remaining `datetime.utcnow()` warnings are pre-existing deferred debt.
+
 <!-- Add new entries above this line, newest first within each date block -->

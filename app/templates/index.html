@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="bg-white rounded-lg shadow-md p-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-2">AI Video Prep Studio</h1>
+    <p class="text-gray-500 mb-8">Upload a video to generate an LLM-ready analysis package.</p>
+
+    <form hx-post="/jobs/upload"
+          hx-encoding="multipart/form-data"
+          hx-indicator="#upload-spinner">
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Video file (MP4, WebM, MKV — max 500 MB)
+            </label>
+            <input type="file"
+                   name="file"
+                   accept="video/mp4,video/webm,video/x-matroska"
+                   class="block w-full text-sm text-gray-500
+                          file:mr-4 file:py-2 file:px-4
+                          file:rounded file:border-0
+                          file:text-sm file:font-semibold
+                          file:bg-blue-50 file:text-blue-700
+                          hover:file:bg-blue-100">
+        </div>
+
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+            Upload &amp; Process
+        </button>
+
+        <div id="upload-spinner" class="htmx-indicator mt-4 text-center text-gray-500 text-sm">
+            Uploading, please wait…
+        </div>
+    </form>
+</div>
+{% endblock %}
