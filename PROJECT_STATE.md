@@ -13,11 +13,11 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `docs/update-state-after-process-docs` |
-| Main branch | `main` is synced with `origin/main` through PR #10 |
-| Current task | Post-merge state file update |
-| Status | Docs-only cleanup |
-| Blockers | None |
+| Active branch | `feature/milestone-005-download-endpoint` |
+| Main branch | `main` is synced with `origin/main` through PR #12 |
+| Current task | M005 implementation: `GET /download/{job_id}` |
+| Status | Implementation complete; local and Docker/manual gates green |
+| Blockers | Security Agent and Codex Reviewer still pending |
 
 ## Recently Completed
 
@@ -28,11 +28,12 @@ milestone status, blockers, or next step changes.
 | M003 - RQ worker mock processing | #5, #6 | Done |
 | M004 - Media pipeline output assembly | #7, #8 | Done |
 | M005 spec - Download endpoint | #9 | Done |
-| Process state files | #10 | Done |
+| Process state files | #10, #11 | Done |
+| GitHub Actions CI | #12 | Done |
 
 ## MVP 1 Remaining Scope
 
-- [ ] GitHub Actions CI
+- [x] GitHub Actions CI
 - [ ] M005 implementation: `GET /download/{job_id}`
 - [ ] Job status page with HTMX polling
 - [ ] 24h file retention + cleanup
@@ -43,18 +44,17 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-After this state-update branch is merged, choose one branch:
+Finish M005 implementation first:
 
-1. `feature/ci-setup` - add GitHub Actions before more implementation.
-2. `feature/milestone-005-download-endpoint` - implement the already merged M005 spec.
+1. Run Security Agent clean review.
+2. Run Codex Reviewer clean review.
+3. Commit, push, PR, and human merge if all gates pass.
 
-Mentor recommendation: do `feature/ci-setup` first if the goal is stronger gates before
-M005 implementation. Do M005 first if the goal is faster MVP user flow.
+After M005, pick the next MVP 1 item via Process Mentor.
 
 ## Known Technical Debt
 
 - `datetime.utcnow()` deprecation warnings remain deferred.
-- No GitHub Actions CI exists yet.
 - M004 uses mock transcription and mock screenshots; real media processing remains deferred.
 
 ## Process Notes

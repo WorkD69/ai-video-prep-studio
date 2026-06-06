@@ -232,4 +232,32 @@ M004 still uses placeholder screenshots and MockTranscriber only. Real ffmpeg/ff
 faster-whisper, download endpoint, UI, 1-active-job limit, and 24h cleanup remain out of scope.
 Existing `datetime.utcnow()` deprecation warnings remain deferred.
 
+---
+
+### 2026-06-06 - Milestone 005 Download Endpoint
+
+**[IMPL] Implemented root-mounted ZIP download endpoint.**
+- `app/api/download.py`: added unprefixed `GET /download/{job_id}` route returning `FileResponse`
+  for done, non-expired jobs with existing ZIP artifacts.
+- `app/main.py`: included the unprefixed download router so the route is exactly
+  `/download/{job_id}`, not `/jobs/download/{job_id}`.
+- `tests/test_download.py`: added 12 deterministic route tests covering happy path, 404,
+  all non-done statuses, expired jobs, null `output_path`, traversal defense, missing file,
+  invalid UUID, and safe `Content-Disposition`.
+
+**[NOTE] Gates passed.**
+TDD red state confirmed first: all 12 download tests failed with 404 before route implementation.
+After implementation, `python -m pytest tests/test_download.py -q --tb=short` passed with
+12 tests, and `python -m pytest tests/ -q --tb=short` passed with 138 tests.
+Docker canonical gate passed: `docker compose run --rm app python -m alembic upgrade head`,
+`docker compose up -d --build app worker`, and `/health` returned `status=ok`, `db=ok`,
+and `redis=ok`. Manual smoke verified 404 unknown job, 422 invalid UUID, deterministic 409
+with worker stopped, 200 download for a completed job, safe `Content-Disposition`, and required
+ZIP entries.
+
+**[NOTE] Residual risks accepted for now.**
+The implementation follows the existing naive `datetime.utcnow()` pattern documented as deferred
+technical debt. Download corruption/invariant cases are covered by pytest. Clean security and
+reviewer passes are still pending before merge.
+
 <!-- Add new entries above this line, newest first within each date block -->
