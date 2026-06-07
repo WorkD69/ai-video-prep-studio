@@ -13,10 +13,10 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `feature/milestone-007-file-retention-cleanup` |
-| Main branch | `main` includes M001-M006 (latest: PR #18 M007 spec) |
-| Current task | M007 implementation complete; ready for human commit/push/PR action |
-| Status | All 166 tests GREEN; Security approved; Codex Reviewer accepted; Docker/manual gate passed |
+| Active branch | `main` |
+| Main branch | `main` includes M001-M007 (latest: PR #19 M007 implementation) |
+| Current task | Post-M007 planning; choose and spec the next MVP milestone |
+| Status | M007 merged; all implementation, security, reviewer, CI, and Docker/manual gates passed |
 | Blockers | None |
 
 ## Recently Completed
@@ -34,26 +34,29 @@ milestone status, blockers, or next step changes.
 | M006 spec - Job status page | #15 | Done |
 | M006 implementation - Job status page | #16 | Done |
 | M007 spec - File retention + cleanup | #18 | Done |
-| M007 implementation - File retention + cleanup | pending PR | Ready for PR |
+| M007 implementation - File retention + cleanup | #19 | Done |
 
 ## MVP 1 Remaining Scope
 
 - [x] GitHub Actions CI
 - [x] M005 implementation: `GET /download/{job_id}`
 - [x] M006: Job status page with HTMX polling
-- [x] 24h file retention + cleanup (M007 impl done; Security, Reviewer, Docker/manual gates passed)
-- [ ] 1 active job per session/IP
+- [x] M007: 24h file retention + cleanup
+- [ ] M008: 1 active job per session/IP
 - [ ] Real ffmpeg screenshots
 - [ ] Real faster-whisper transcription
 - [ ] Docker deploy hardening
 
 ## Recommended Next Decision
 
-Open and merge the M007 implementation PR after human approval, then pick the next MVP 1 item via Process Mentor.
+Prepare M008: 1 active job per session/IP.
+
+Before implementation, create ADR 004 for the session mechanism. The current `session_id` is a
+fresh UUID per upload and is not tied to a browser cookie, IP policy, or signed token.
 
 Likely next candidates:
 
-1. 1 active job per session/IP.
+1. M008: 1 active job per session/IP, with ADR 004 first.
 2. Real ffmpeg screenshots.
 3. Real faster-whisper transcription.
 4. Docker deploy hardening.

@@ -11,8 +11,8 @@ history.
 
 ## Role / Process Context
 
-The next chat should start as Codex Process Mentor / Tech Lead for AI Video Prep Studio.
-Respond to Artem in Russian.
+The next chat should start as Codex Process Mentor / Tech Lead or Architect / Planner for
+AI Video Prep Studio. Respond to Artem in Russian.
 
 Project rules:
 - `CLAUDE.md` is the source of stack, quality gates, and Enterprise Vibe Coding rules.
@@ -25,85 +25,60 @@ Project rules:
 
 ## Current Branch
 
-`feature/milestone-007-file-retention-cleanup`
+`main`
 
-## Current Working Tree
+## Current State
 
-M007 implementation is present, reviewed, manually gated, and uncommitted.
+M007 implementation was merged via PR #19.
 
-Modified files:
-- `AI_HANDOFF.md`
-- `AI_WORKLOG.md`
-- `PROJECT_STATE.md`
-- `app/config.py`
-- `app/main.py`
-- `app/workers/process_job.py`
-- `tests/test_worker.py`
+Merge details:
+- PR: `#19 feat: Add file retention cleanup`
+- Merge commit: `886f709`
+- CI: GitHub Actions `pytest` passed
+- Local `main` was fast-forwarded to `origin/main`
 
-New files:
-- `app/services/__init__.py`
-- `app/services/cleanup.py`
-- `tests/test_cleanup.py`
+## What M007 Completed
 
-## What Was Done
-
-- Implemented M007 file retention and cleanup:
+- Added path-validated cleanup service:
   - `safe_delete`
   - `CleanupResult`
   - `cleanup_expired_jobs`
-  - worker immediate input cleanup
-  - `cleanup_interval_seconds`
-  - FastAPI lifespan cleanup loop
-  - cleanup tests
-- Codex Reviewer initially rejected with one High finding:
-  - unclaimed worker skip (`rowcount == 0`) still cleaned `job.input_path`.
-- Reviewer fix loop #1 completed:
-  - `process_job()` now uses a `claimed` flag.
-  - input cleanup runs only after this worker wins the guarded transition.
-  - added `test_worker_unclaimed_skip_does_not_delete_input`.
-
-## Gates Passed
-
-- `python -m pytest tests/test_cleanup.py tests/test_worker.py -q --tb=short` -> 24 passed.
-- `python -m pytest tests/ -q --tb=short` -> 166 passed.
-- `git diff --check` -> clean, with Windows LF/CRLF warnings only.
-- Security Agent initial review -> `SECURITY APPROVED`.
-- Security Agent re-check after reviewer fix -> `SECURITY APPROVED`.
-- Codex Reviewer re-check -> `ACCEPT - no issues found`.
+- Added worker immediate input cleanup after claimed processing only.
+- Added `cleanup_interval_seconds`.
+- Added FastAPI lifespan cleanup loop.
+- Added cleanup tests, including the reviewer regression test for unclaimed worker skip.
+- Security Agent approved.
+- Codex Reviewer accepted after reviewer fix loop #1.
 - Docker/manual gate passed:
-  - `docker compose up -d --build app worker`
-  - `/health` returned `status=ok`, `db=ok`, `redis=ok`
-  - smoke job `d8dc367e-0632-49f4-a977-e0ee7644e893` reached `done`
-  - worker log showed `worker_input_cleaned`
-  - input file `uploads/c8ec4823-934c-464b-b3bd-1424095230e7.mp4` was deleted
-  - output ZIP `outputs/llm_analysis_package_valid_20260607_141038.zip` initially existed
-  - temporary app container with `CLEANUP_INTERVAL_SECONDS=2` on port 8001 ran scheduled cleanup
-  - after setting `expires_at` to the past, cleanup logged `deleted_zips=1`
-  - output ZIP was deleted
-  - `GET /download/d8dc367e-0632-49f4-a977-e0ee7644e893` returned `410 Gone`
+  - rebuilt app/worker containers
+  - `/health` OK
+  - upload smoke reached `done`
+  - worker input cleanup verified
+  - scheduled cleanup with `CLEANUP_INTERVAL_SECONDS=2` deleted expired ZIP
+  - expired download returned `410 Gone`
 
 ## Exact Current Stop Point
 
-Process verdict:
+M007 is complete and merged. The project is ready for next-milestone planning.
 
-`PROCEED - M007 implementation gates are green and the branch is ready for human-approved commit/push/PR.`
-
-Do not commit, push, or create PR unless Artem explicitly asks.
+No active implementation branch should be used for new feature work. Create a new planning/spec
+branch for the next milestone.
 
 ## Recommended Next Action
 
-If Artem approves, prepare the commit and PR for M007 implementation.
+Start M008 planning: 1 active job per session/IP.
 
-Suggested commit message:
+Before implementation, create ADR 004 for the session mechanism because the current `session_id`
+is a fresh UUID per upload and is not tied to a browser cookie, IP policy, or signed token.
 
-`feat: add file retention cleanup`
-
-After PR/merge, next likely MVP item is M008: 1 active job per session/IP. That likely needs ADR 004
-for the session mechanism before implementation.
+Architect / Planner should decide:
+- Whether M008 should enforce by signed browser cookie, IP address, or hybrid session/IP policy.
+- Whether any schema change is required.
+- How to handle anonymous sessions, spoofing risk, reverse proxy headers, and concurrency races.
+- Which tests and quality gates are required.
 
 ## Open Notes
 
 - `datetime.utcnow()` warnings remain deferred project-wide technical debt.
 - M004 still uses mock transcription/screenshots; real media processing remains deferred.
-- Old files from earlier smoke runs may still exist in `uploads/` / `outputs/`; M007 gate verified
-  specific new job artifacts rather than requiring empty directories.
+- Old files from earlier smoke runs may still exist in `uploads/` / `outputs/`.
