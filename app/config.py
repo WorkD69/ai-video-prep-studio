@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     mock_processing_delay_seconds: int = 0
     mock_force_fail: bool = False
     mock_failure_trigger_enabled: bool = False
+    cleanup_interval_seconds: int = 600
 
     model_config = SettingsConfigDict(
         env_file=".env",

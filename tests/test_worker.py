@@ -181,6 +181,7 @@ def test_worker_failure_trigger_marks_failed():
         "mock_processing_delay_seconds": 0,
         "mock_force_fail": True,
         "mock_failure_trigger_enabled": False,
+        "upload_dir": "./uploads",
     })()
 
     with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
@@ -213,6 +214,7 @@ def test_worker_filename_fail_trigger_disabled_by_default():
         "mock_processing_delay_seconds": 0,
         "mock_force_fail": False,
         "mock_failure_trigger_enabled": False,  # default production config
+        "upload_dir": "./uploads",
     })()
 
     fake_zip = Path("/tmp/fake.zip")
@@ -236,6 +238,7 @@ def test_worker_filename_fail_trigger_enabled():
         "mock_processing_delay_seconds": 0,
         "mock_force_fail": False,
         "mock_failure_trigger_enabled": True,
+        "upload_dir": "./uploads",
     })()
 
     with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
@@ -305,6 +308,7 @@ def test_worker_failure_guarded_does_not_overwrite_non_processing():
         "mock_processing_delay_seconds": 0,
         "mock_force_fail": True,
         "mock_failure_trigger_enabled": False,
+        "upload_dir": "./uploads",
     })()
 
     with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
