@@ -7,6 +7,40 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-07 — ADR 004 + Milestone 008 Spec (Session Active-Job Limit)
+
+**[DECISION] ADR 004 accepted: session mechanism = signed browser cookie.**
+`docs/adr/004-session-mechanism.md` created with Status: Accepted (human sign-off granted).
+Mechanism: cookie `aivps_session` carrying a server-minted UUID `session_id`, signed with stdlib
+`HMAC-SHA256(SECRET_KEY, session_id)` (no new dependency; itsdangerous deliberately not used),
+verified via `hmac.compare_digest`. Absent/tampered/invalid cookie → silent fresh session, never 500.
+No server-side expiry (HMAC carries no timestamp) — expiry is browser-side via `Max-Age`. This
+supersedes the M002 "fresh uuid4 per upload" `session_id` note. Cookie limit is documented as a soft
+fairness control, bypassable by clearing cookies/incognito (accepted for MVP).
+
+**[DECISION] Human-approved design inputs for M008:**
+1. Session = signed browser cookie. 2. Race-safety = PostgreSQL advisory **transaction** lock
+(`pg_advisory_xact_lock`, keyed on session, auto-released at commit/rollback). 3. `X-Forwarded-For`/IP
+not trusted in MVP. 4. HTMX inline 429 in scope via the `response-targets` extension (honest HTTP 429
++ swapped fragment). Plus: one partial index via Alembic; lock strategy = save file → short
+lock+authoritative re-check+insert+commit (lock not held across the upload stream).
+
+**[NOTE] M008 spec drafted: `docs/milestones/008-session-active-job-limit.md`.**
+"1 active job per session" where active = `pending`/`queued`/`processing`. Upload order: early no-lock
+pre-check → save file → advisory xact lock → authoritative re-check (on race: delete saved file,
+rollback, 429) → insert/commit (lock releases) → enqueue → guarded flip → set cookie. 429: HX →
+`HTMLResponse(429)` fragment in `#upload-error` with link to active job; non-HX → `JSONResponse(429,
+{"detail":"active_job_exists"})` (returned, not raised, so the cookie can be set). Set-Cookie is set
+on the actually-returned object in every branch (JSON 201, HTMX HX-Redirect, HTMX 429, JSON 429,
+GET /). New seams `app/services/session.py` + `app/services/active_job.py` are patched in unit tests
+(CI has no Postgres; real lock verified by the Docker concurrency gate). AC1–AC15, test plan, security
+focus, canonical DB + manual gate, and the agent-card update (`backend-agent.md` session_id contract)
+are all specified.
+
+**[NOTE] Branch + scope.** Work is on `docs/milestone-008-session-limit`. Docs-only: ADR 004, the
+M008 spec, and this worklog entry. No implementation code written. Implementation is a separate clean
+chat on `feature/milestone-008-session-limit`. Not committed/pushed — awaiting human action.
+
 ### 2026-06-07 - Milestone 007 Review Gates + Docker Manual Gate
 
 **[REVIEW] PR #19 merged into `main`.**
