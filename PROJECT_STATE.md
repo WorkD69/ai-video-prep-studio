@@ -7,16 +7,16 @@ milestone status, blockers, or next step changes.
 
 ## Updated
 
-2026-06-06
+2026-06-07
 
 ## Current State
 
 | Field | Value |
 |---|---|
-| Active branch | `docs/update-state-after-m006` |
-| Main branch | `main` includes merged M006 implementation (PR #16) |
-| Current task | Post-merge state file update after M006 |
-| Status | Docs/process cleanup |
+| Active branch | `feature/milestone-007-file-retention-cleanup` |
+| Main branch | `main` includes M001-M006 (latest: PR #18 M007 spec) |
+| Current task | M007 implementation complete; ready for human commit/push/PR action |
+| Status | All 166 tests GREEN; Security approved; Codex Reviewer accepted; Docker/manual gate passed |
 | Blockers | None |
 
 ## Recently Completed
@@ -33,13 +33,15 @@ milestone status, blockers, or next step changes.
 | M005 implementation - Download endpoint | #13 | Done |
 | M006 spec - Job status page | #15 | Done |
 | M006 implementation - Job status page | #16 | Done |
+| M007 spec - File retention + cleanup | #18 | Done |
+| M007 implementation - File retention + cleanup | pending PR | Ready for PR |
 
 ## MVP 1 Remaining Scope
 
 - [x] GitHub Actions CI
 - [x] M005 implementation: `GET /download/{job_id}`
 - [x] M006: Job status page with HTMX polling
-- [ ] 24h file retention + cleanup
+- [x] 24h file retention + cleanup (M007 impl done; Security, Reviewer, Docker/manual gates passed)
 - [ ] 1 active job per session/IP
 - [ ] Real ffmpeg screenshots
 - [ ] Real faster-whisper transcription
@@ -47,14 +49,14 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Decision
 
-Finish this docs/process cleanup branch, then pick the next MVP 1 item via Process Mentor.
+Open and merge the M007 implementation PR after human approval, then pick the next MVP 1 item via Process Mentor.
 
 Likely next candidates:
 
-1. 24h file retention + cleanup.
-2. 1 active job per session/IP.
-3. Real ffmpeg screenshots.
-4. Real faster-whisper transcription.
+1. 1 active job per session/IP.
+2. Real ffmpeg screenshots.
+3. Real faster-whisper transcription.
+4. Docker deploy hardening.
 
 ## Known Technical Debt
 

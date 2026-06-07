@@ -7,71 +7,103 @@ history.
 
 ## Last Updated
 
-2026-06-06
+2026-06-07
 
 ## Role / Process Context
 
 The next chat should start as Codex Process Mentor / Tech Lead for AI Video Prep Studio.
-Use `CLAUDE.md` as the source of coding rules, stack decisions, and quality gates.
-Use `AGENTS.md` for process roles. Respond to Artem in Russian.
+Respond to Artem in Russian.
+
+Project rules:
+- `CLAUDE.md` is the source of stack, quality gates, and Enterprise Vibe Coding rules.
+- `AGENTS.md` defines process roles.
+- `PROJECT_STATE.md` and `AI_HANDOFF.md` are planning context only.
+- Do not include `PROJECT_STATE.md` or `AI_HANDOFF.md` in clean Security Agent or Codex Reviewer prompts.
+- Do not commit or push without explicit human action.
 
 ---
 
 ## Current Branch
 
-`docs/update-state-after-m006`
+`feature/milestone-007-file-retention-cleanup`
 
 ## Current Working Tree
 
-Docs/process-state update after M006 merge:
+M007 implementation is present, reviewed, manually gated, and uncommitted.
 
-- `PROJECT_STATE.md` - marks M006 implementation as done and recommends selecting next MVP item.
-- `AI_HANDOFF.md` - this handoff.
+Modified files:
+- `AI_HANDOFF.md`
+- `AI_WORKLOG.md`
+- `PROJECT_STATE.md`
+- `app/config.py`
+- `app/main.py`
+- `app/workers/process_job.py`
+- `tests/test_worker.py`
 
-No runtime code changes are expected on this branch.
+New files:
+- `app/services/__init__.py`
+- `app/services/cleanup.py`
+- `tests/test_cleanup.py`
 
----
+## What Was Done
 
-## What Was Done In This Session
+- Implemented M007 file retention and cleanup:
+  - `safe_delete`
+  - `CleanupResult`
+  - `cleanup_expired_jobs`
+  - worker immediate input cleanup
+  - `cleanup_interval_seconds`
+  - FastAPI lifespan cleanup loop
+  - cleanup tests
+- Codex Reviewer initially rejected with one High finding:
+  - unclaimed worker skip (`rowcount == 0`) still cleaned `job.input_path`.
+- Reviewer fix loop #1 completed:
+  - `process_job()` now uses a `claimed` flag.
+  - input cleanup runs only after this worker wins the guarded transition.
+  - added `test_worker_unclaimed_skip_does_not_delete_input`.
 
-- M006 implementation PR #16 was merged into `main`.
-- Local `main` was updated to include merge commit `93f4886`.
-- The feature branch `feature/milestone-006-job-status-page` was deleted locally and remotely.
-- This docs/process branch was created: `docs/update-state-after-m006`.
-- `PROJECT_STATE.md` and `AI_HANDOFF.md` were updated to reflect M006 completion.
+## Gates Passed
 
-M006 gates before merge:
-
-- Security Agent: `SECURITY APPROVED - no security issues found`.
-- Codex Reviewer: `ACCEPT - no issues found`.
-- GitHub Actions CI: `pytest` succeeded on PR #16.
-- Local tests passed: `python -m pytest tests/test_pages.py -q --tb=short` -> 16 passed.
-- Full local tests passed: `python -m pytest tests/ -q --tb=short` -> 154 passed.
-- Docker/manual browser smoke passed: health OK, upload form rendered, browser upload redirected
-  to `/status/{job_id}`, polling reached `done`, download button appeared, ZIP downloaded.
-
----
+- `python -m pytest tests/test_cleanup.py tests/test_worker.py -q --tb=short` -> 24 passed.
+- `python -m pytest tests/ -q --tb=short` -> 166 passed.
+- `git diff --check` -> clean, with Windows LF/CRLF warnings only.
+- Security Agent initial review -> `SECURITY APPROVED`.
+- Security Agent re-check after reviewer fix -> `SECURITY APPROVED`.
+- Codex Reviewer re-check -> `ACCEPT - no issues found`.
+- Docker/manual gate passed:
+  - `docker compose up -d --build app worker`
+  - `/health` returned `status=ok`, `db=ok`, `redis=ok`
+  - smoke job `d8dc367e-0632-49f4-a977-e0ee7644e893` reached `done`
+  - worker log showed `worker_input_cleaned`
+  - input file `uploads/c8ec4823-934c-464b-b3bd-1424095230e7.mp4` was deleted
+  - output ZIP `outputs/llm_analysis_package_valid_20260607_141038.zip` initially existed
+  - temporary app container with `CLEANUP_INTERVAL_SECONDS=2` on port 8001 ran scheduled cleanup
+  - after setting `expires_at` to the past, cleanup logged `deleted_zips=1`
+  - output ZIP was deleted
+  - `GET /download/d8dc367e-0632-49f4-a977-e0ee7644e893` returned `410 Gone`
 
 ## Exact Current Stop Point
 
-M006 is merged. Current branch is a docs/process-state cleanup branch.
+Process verdict:
 
-Do not start the next implementation in this branch.
+`PROCEED - M007 implementation gates are green and the branch is ready for human-approved commit/push/PR.`
 
----
+Do not commit, push, or create PR unless Artem explicitly asks.
 
-## Next Action
+## Recommended Next Action
 
-1. Commit only the process-state docs updates.
-2. Push `docs/update-state-after-m006`.
-3. Open a small PR to `main` and merge after CI is green.
-4. After merge, sync `main`, delete the docs branch if desired, and ask Process Mentor to pick
-   the next MVP 1 item.
+If Artem approves, prepare the commit and PR for M007 implementation.
 
----
+Suggested commit message:
 
-## Open Questions / Decisions Not Captured Elsewhere
+`feat: add file retention cleanup`
 
-- `datetime.utcnow()` warnings remain deferred technical debt.
-- M004 still uses mock transcription and mock screenshots; real media processing remains deferred.
-- Inline HTMX upload error display remains deferred by the M006 spec.
+After PR/merge, next likely MVP item is M008: 1 active job per session/IP. That likely needs ADR 004
+for the session mechanism before implementation.
+
+## Open Notes
+
+- `datetime.utcnow()` warnings remain deferred project-wide technical debt.
+- M004 still uses mock transcription/screenshots; real media processing remains deferred.
+- Old files from earlier smoke runs may still exist in `uploads/` / `outputs/`; M007 gate verified
+  specific new job artifacts rather than requiring empty directories.

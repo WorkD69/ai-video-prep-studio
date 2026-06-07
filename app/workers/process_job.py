@@ -1,12 +1,14 @@
 import time
 import structlog
 from datetime import datetime
+from pathlib import Path
 from sqlalchemy import update
 
 from app.config import settings
 from app.database import SessionLocal
 from app.models.job import Job, JobStatus
 from app.pipeline.mock_pipeline import run_mock_output_pipeline
+from app.services.cleanup import safe_delete
 
 logger = structlog.get_logger()
 
@@ -14,6 +16,7 @@ logger = structlog.get_logger()
 def process_job(job_id: str) -> None:
     db = SessionLocal()
     job = None
+    claimed = False  # True only after this worker wins the guarded transition
     try:
         job = db.get(Job, job_id)
         if job is None:
@@ -35,6 +38,8 @@ def process_job(job_id: str) -> None:
                 stage="worker",
             )
             return
+
+        claimed = True
 
         # Mock processing
         if settings.mock_processing_delay_seconds > 0:
@@ -94,4 +99,14 @@ def process_job(job_id: str) -> None:
                 )
         raise
     finally:
+        if claimed and job is not None and job.input_path:
+            outcome = safe_delete(
+                job.input_path,
+                allowed_dir=Path(settings.upload_dir).resolve(),
+                log_context={"job_id": job_id, "stage": "worker"},
+            )
+            if outcome == "deleted":
+                logger.info("worker_input_cleaned", job_id=job_id, stage="worker")
+            elif outcome == "missing":
+                logger.info("worker_input_already_gone", job_id=job_id, stage="worker")
         db.close()

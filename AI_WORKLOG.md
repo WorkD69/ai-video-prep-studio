@@ -7,6 +7,75 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-07 - Milestone 007 Review Gates + Docker Manual Gate
+
+**[REVIEW] Security Agent verdict: SECURITY APPROVED.**
+Clean security review found no Critical/High/Medium/Low findings in the initial M007 diff.
+
+**[REVIEW] Codex Reviewer verdict: REJECT with 1 High finding.**
+Reviewer found that `process_job()` cleaned `job.input_path` in `finally` even when the
+guarded transition returned `rowcount == 0`, meaning the current worker did not claim the job.
+This could delete an input file while another worker was processing the same job.
+
+**[FIX] Reviewer fix loop #1 completed.**
+`app/workers/process_job.py` now uses a `claimed` flag. Input cleanup runs only after this worker
+wins the guarded transition. Added `test_worker_unclaimed_skip_does_not_delete_input` to ensure
+an unclaimed worker does not call `safe_delete` and leaves the input file untouched.
+
+**[REVIEW] Security re-check verdict: SECURITY APPROVED.**
+Security Agent confirmed the previous High was closed: worker deletion now requires
+`claimed=True`, and DB-backed cleanup paths still pass through `resolve()` plus
+`is_relative_to(...)` before `unlink()`.
+
+**[REVIEW] Codex Reviewer re-check verdict: ACCEPT.**
+No issues found after reviewer fix loop #1.
+
+**[NOTE] Gates passed.**
+Fresh Process Mentor verification:
+`python -m pytest tests/test_cleanup.py tests/test_worker.py -q --tb=short` -> 24 passed.
+`python -m pytest tests/ -q --tb=short` -> 166 passed.
+`git diff --check` -> clean, with Windows LF/CRLF warnings only.
+
+**[NOTE] Docker/manual gate passed.**
+Docker images were rebuilt with `docker compose up -d --build app worker`; `/health` returned
+`status=ok`, `db=ok`, `redis=ok`.
+Manual smoke job `d8dc367e-0632-49f4-a977-e0ee7644e893` uploaded `tmp/valid.mp4`, reached
+`done`, and worker log showed `worker_input_cleaned`. Its input file
+`uploads/c8ec4823-934c-464b-b3bd-1424095230e7.mp4` was deleted while output ZIP
+`outputs/llm_analysis_package_valid_20260607_141038.zip` initially existed.
+For scheduled cleanup, a temporary app container with `CLEANUP_INTERVAL_SECONDS=2` was run on
+port 8001. After setting `expires_at` to the past, the cleanup loop logged `deleted_zips=1`,
+the ZIP was deleted, and `GET /download/d8dc367e-0632-49f4-a977-e0ee7644e893` returned
+`410 Gone` with `{"detail":"job_expired"}`.
+
+### 2026-06-06 — Milestone 007 — 24h File Retention + Cleanup (Implementation)
+
+**[IMPL] M007 fully implemented on `feature/milestone-007-file-retention-cleanup`.**
+
+Files changed:
+- `app/services/__init__.py` — new package
+- `app/services/cleanup.py` — `safe_delete`, `CleanupResult`, `cleanup_expired_jobs`
+- `app/workers/process_job.py` — `safe_delete` call in `finally` block for immediate input cleanup
+- `app/config.py` — added `cleanup_interval_seconds: int = 600`
+- `app/main.py` — converted to `@asynccontextmanager` lifespan; added `_cleanup_loop` background task
+- `tests/test_cleanup.py` — 11 new TDD tests (all GREEN)
+- `tests/test_worker.py` — added `upload_dir` to 4 existing `fake_settings` objects (minimal fix; new dep)
+
+**[NOTE] TDD cycle followed:**
+RED confirmed with `ModuleNotFoundError: No module named 'app.services'`.
+GREEN: 11/11 new tests + 154 existing = 165 total passing.
+
+**[NOTE] Existing tests regression fix:**
+4 tests in `test_worker.py` used `fake_settings` without `upload_dir`. Added `"upload_dir": "./uploads"` to each. The existing tests still test the same worker behavior; change is minimal (new attribute required by new finally-block code).
+
+**[NOTE] Docker manual gate pending.**
+AC14 requires Docker smoke test. To be executed after Security review.
+
+**[NOTE] Path traversal protection:**
+`safe_delete` validates every path from DB against the configured directory before calling `unlink()`. Traversal attempts log CRITICAL and skip deletion. Pattern mirrors `download.py`.
+
+---
+
 ### 2026-06-01 — Milestone 002B Upload Intake Implementation
 
 **[IMPL] Implemented upload intake and job creation.**
