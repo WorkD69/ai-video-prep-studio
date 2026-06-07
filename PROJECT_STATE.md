@@ -14,9 +14,9 @@ milestone status, blockers, or next step changes.
 | Field | Value |
 |---|---|
 | Active branch | `main` |
-| Main branch | `main` includes M001-M007 (latest: PR #19 M007 implementation) |
-| Current task | Post-M007 planning; choose and spec the next MVP milestone |
-| Status | M007 merged; all implementation, security, reviewer, CI, and Docker/manual gates passed |
+| Main branch | `main` includes M001-M007 plus ADR 004 / M008 spec (latest: PR #20 docs) |
+| Current task | Start M008 implementation: 1 active job per signed-cookie session |
+| Status | M008 ADR/spec merged; ready for clean Backend Implementation Agent |
 | Blockers | None |
 
 ## Recently Completed
@@ -35,6 +35,7 @@ milestone status, blockers, or next step changes.
 | M006 implementation - Job status page | #16 | Done |
 | M007 spec - File retention + cleanup | #18 | Done |
 | M007 implementation - File retention + cleanup | #19 | Done |
+| ADR 004 + M008 spec - Session active-job limit | #20 | Done |
 
 ## MVP 1 Remaining Scope
 
@@ -42,30 +43,26 @@ milestone status, blockers, or next step changes.
 - [x] M005 implementation: `GET /download/{job_id}`
 - [x] M006: Job status page with HTMX polling
 - [x] M007: 24h file retention + cleanup
-- [ ] M008: 1 active job per session/IP
+- [ ] M008 implementation: 1 active job per signed-cookie session
 - [ ] Real ffmpeg screenshots
 - [ ] Real faster-whisper transcription
 - [ ] Docker deploy hardening
 
-## Recommended Next Decision
+## Recommended Next Action
 
-Prepare M008: 1 active job per session/IP.
+Implement M008 from `docs/milestones/008-session-active-job-limit.md`.
 
-Before implementation, create ADR 004 for the session mechanism. The current `session_id` is a
-fresh UUID per upload and is not tied to a browser cookie, IP policy, or signed token.
+Use a clean Backend Implementation Agent chat on a new branch:
+`feature/milestone-008-session-limit`.
 
-Likely next candidates:
-
-1. M008: 1 active job per session/IP, with ADR 004 first.
-2. Real ffmpeg screenshots.
-3. Real faster-whisper transcription.
-4. Docker deploy hardening.
+ADR 004 is accepted and merged. The M008 session mechanism is a signed browser cookie, not IP /
+`X-Forwarded-For`.
 
 ## Known Technical Debt
 
 - `datetime.utcnow()` deprecation warnings remain deferred.
 - M004 uses mock transcription and mock screenshots; real media processing remains deferred.
-- Inline HTMX upload error display remains deferred by the M006 spec.
+- Inline HTMX 429 upload error display is in scope for M008.
 
 ## Process Notes
 

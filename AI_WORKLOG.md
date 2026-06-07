@@ -7,6 +7,17 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-07 - PR #20 Merged (ADR 004 + M008 Spec)
+
+**[REVIEW] PR #20 merged into `main`.**
+ADR 004 and the M008 session active-job limit spec are now merged. The latest `main` merge commit is
+`f61fcb1`. GitHub Actions `pytest` passed. This was a docs-only PR: no implementation code changed.
+
+**[NOTE] Next step.**
+Start M008 implementation in a clean Backend Implementation Agent chat on
+`feature/milestone-008-session-limit`, using ADR 004 and
+`docs/milestones/008-session-active-job-limit.md` as the implementation contract.
+
 ### 2026-06-07 — ADR 004 + Milestone 008 Spec (Session Active-Job Limit)
 
 **[DECISION] ADR 004 accepted: session mechanism = signed browser cookie.**

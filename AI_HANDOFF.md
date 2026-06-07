@@ -29,53 +29,47 @@ Project rules:
 
 ## Current State
 
-M007 implementation was merged via PR #19.
+M007 implementation is complete and merged. ADR 004 + M008 spec are also merged.
 
-Merge details:
-- PR: `#19 feat: Add file retention cleanup`
-- Merge commit: `886f709`
+Latest merge details:
+- PR: `#20 docs: Add M008 session limit spec`
+- Merge commit: `f61fcb1`
 - CI: GitHub Actions `pytest` passed
-- Local `main` was fast-forwarded to `origin/main`
+- Local `main` is at the PR #20 merge commit
 
-## What M007 Completed
+## What PR #20 Completed
 
-- Added path-validated cleanup service:
-  - `safe_delete`
-  - `CleanupResult`
-  - `cleanup_expired_jobs`
-- Added worker immediate input cleanup after claimed processing only.
-- Added `cleanup_interval_seconds`.
-- Added FastAPI lifespan cleanup loop.
-- Added cleanup tests, including the reviewer regression test for unclaimed worker skip.
-- Security Agent approved.
-- Codex Reviewer accepted after reviewer fix loop #1.
-- Docker/manual gate passed:
-  - rebuilt app/worker containers
-  - `/health` OK
-  - upload smoke reached `done`
-  - worker input cleanup verified
-  - scheduled cleanup with `CLEANUP_INTERVAL_SECONDS=2` deleted expired ZIP
-  - expired download returned `410 Gone`
+- Added `docs/adr/004-session-mechanism.md` with Status: Accepted.
+- Added `docs/milestones/008-session-active-job-limit.md`.
+- Recorded M008 planning decisions in `AI_WORKLOG.md`.
+- No implementation code was changed.
+
+## M008 Decisions Now Fixed
+
+- Session mechanism: signed browser cookie `aivps_session`.
+- Signing: Python stdlib HMAC-SHA256 only (`hmac`, `hashlib`, `base64`), no new dependency.
+- Expiry: browser-side `Max-Age`; no server-side expired-cookie rejection.
+- Limit key: signed-cookie session, not IP / `X-Forwarded-For`.
+- Race safety: PostgreSQL transaction-level advisory lock.
+- HTMX 429: inline fragment via `response-targets`.
+- Schema: Alembic partial index for active jobs by session.
+- Agent-card update: `docs/agents/backend-agent.md` is in M008 implementation scope.
 
 ## Exact Current Stop Point
 
-M007 is complete and merged. The project is ready for next-milestone planning.
+ADR 004 and M008 spec are complete and merged. The project is ready for M008 implementation.
 
-No active implementation branch should be used for new feature work. Create a new planning/spec
-branch for the next milestone.
+Create a new implementation branch from `main`:
+`feature/milestone-008-session-limit`.
 
 ## Recommended Next Action
 
-Start M008 planning: 1 active job per session/IP.
+Open a clean Backend Implementation Agent chat for M008. Give it only implementation context:
+`CLAUDE.md`, `AGENTS.md`, ADR 004, M008 spec, relevant backend files, and the backend/QA/security
+agent cards.
 
-Before implementation, create ADR 004 for the session mechanism because the current `session_id`
-is a fresh UUID per upload and is not tied to a browser cookie, IP policy, or signed token.
-
-Architect / Planner should decide:
-- Whether M008 should enforce by signed browser cookie, IP address, or hybrid session/IP policy.
-- Whether any schema change is required.
-- How to handle anonymous sessions, spoofing risk, reverse proxy headers, and concurrency races.
-- Which tests and quality gates are required.
+Do not include `PROJECT_STATE.md` or `AI_HANDOFF.md` in future clean Security Agent or Codex
+Reviewer prompts.
 
 ## Open Notes
 
