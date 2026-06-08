@@ -7,16 +7,16 @@ milestone status, blockers, or next step changes.
 
 ## Updated
 
-2026-06-07
+2026-06-08
 
 ## Current State
 
 | Field | Value |
 |---|---|
 | Active branch | `main` |
-| Main branch | `main` includes M001-M007 plus ADR 004 / M008 spec (latest: PR #20 docs) |
-| Current task | Start M008 implementation: 1 active job per signed-cookie session |
-| Status | M008 ADR/spec merged; ready for clean Backend Implementation Agent |
+| Main branch | `main` includes M001-M008 (latest: PR #21 M008 implementation) |
+| Current task | Post-M008 state sync; choose/spec next MVP media milestone |
+| Status | M008 merged; CI, Security, Reviewer, and Docker/manual gates passed |
 | Blockers | None |
 
 ## Recently Completed
@@ -36,6 +36,7 @@ milestone status, blockers, or next step changes.
 | M007 spec - File retention + cleanup | #18 | Done |
 | M007 implementation - File retention + cleanup | #19 | Done |
 | ADR 004 + M008 spec - Session active-job limit | #20 | Done |
+| M008 implementation - Session active-job limit | #21 | Done |
 
 ## MVP 1 Remaining Scope
 
@@ -43,26 +44,22 @@ milestone status, blockers, or next step changes.
 - [x] M005 implementation: `GET /download/{job_id}`
 - [x] M006: Job status page with HTMX polling
 - [x] M007: 24h file retention + cleanup
-- [ ] M008 implementation: 1 active job per signed-cookie session
+- [x] M008 implementation: 1 active job per signed-cookie session
 - [ ] Real ffmpeg screenshots
 - [ ] Real faster-whisper transcription
 - [ ] Docker deploy hardening
 
 ## Recommended Next Action
 
-Implement M008 from `docs/milestones/008-session-active-job-limit.md`.
-
-Use a clean Backend Implementation Agent chat on a new branch:
-`feature/milestone-008-session-limit`.
-
-ADR 004 is accepted and merged. The M008 session mechanism is a signed browser cookie, not IP /
-`X-Forwarded-For`.
+Choose and spec the next MVP media milestone. Recommended next candidate: real ffmpeg/ffprobe
+media probing + screenshot extraction, because it unlocks duration enforcement and replaces the
+remaining placeholder screenshot path while keeping faster-whisper as a separate later milestone.
 
 ## Known Technical Debt
 
 - `datetime.utcnow()` deprecation warnings remain deferred.
-- M004 uses mock transcription and mock screenshots; real media processing remains deferred.
-- Inline HTMX 429 upload error display is in scope for M008.
+- M004 still uses mock transcription and placeholder screenshots; real media processing remains deferred.
+- Duration limit enforcement still depends on real ffprobe.
 
 ## Process Notes
 

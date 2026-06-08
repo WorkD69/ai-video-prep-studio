@@ -21,7 +21,7 @@
 - [ ] File size limit enforced: files > 500 MB are rejected with a clear error
 - [ ] Duration limit enforced: videos > 60 minutes are rejected with a clear error
 - [ ] File type validated by content (not just extension)
-- [ ] Only 1 active job per session/IP is allowed; second upload is blocked with explanation
+- [x] Only 1 active job per signed cookie session is allowed; second upload is blocked with explanation
 
 ### Processing
 - [ ] Job is queued and picked up by the RQ worker

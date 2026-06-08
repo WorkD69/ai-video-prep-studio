@@ -14,7 +14,7 @@
 - ZIP download
 - Job status page (polling via HTMX)
 - 24h file retention + cleanup
-- 1 active job per session/IP
+- 1 active job per signed cookie session (`aivps_session`)
 - Docker deploy (`docker compose up --build`)
 - GitHub Actions CI (pytest with MockTranscriber)
 

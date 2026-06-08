@@ -7,6 +7,18 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-08 - PR #21 Merged (M008 Session Active-Job Limit)
+
+**[REVIEW] PR #21 merged into `main`.**
+M008 implementation is complete and merged with merge commit `6962745`. GitHub Actions `pytest`
+passed on the PR. Security Agent approved the full diff, Codex Reviewer accepted after the Low
+backend-agent wording cleanup, and Docker/manual gate passed.
+
+**[NOTE] Next step.**
+Move to next MVP media milestone planning. Recommended candidate: real ffmpeg/ffprobe media probing
+and screenshot extraction, because the app still uses placeholder screenshots and duration limit
+enforcement is deferred until ffprobe.
+
 ### 2026-06-08 - Milestone 008 Security + Reviewer Gates
 
 **[REVIEW] Security Agent approved M008.**

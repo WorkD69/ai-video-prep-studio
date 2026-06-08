@@ -32,7 +32,7 @@ Web service that converts a long video into an LLM-ready ZIP package containing:
 - Max file size: 500 MB
 - Max video duration: 60 minutes
 - Screenshot interval: 20 seconds
-- Max active jobs: 1 per session/IP
+- Max active jobs: 1 per signed cookie session (`aivps_session`); do not use IP / `X-Forwarded-For`
 - File retention: 24 hours, then auto-cleanup
 
 ## Project Structure (Target)
