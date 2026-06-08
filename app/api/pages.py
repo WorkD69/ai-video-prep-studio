@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.job import Job, JobStatus
 from app.schemas.job import JobStatusResponse
+from app.services.session import resolve_session, set_session_cookie
 
 logger = structlog.get_logger()
 
@@ -23,7 +24,10 @@ router = APIRouter(tags=["pages"])
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request) -> HTMLResponse:
-    return templates.TemplateResponse(request, "index.html")
+    session_id, _ = resolve_session(request)
+    resp = templates.TemplateResponse(request, "index.html")
+    set_session_cookie(resp, session_id)
+    return resp
 
 
 @router.get("/status/{job_id}", response_class=HTMLResponse)

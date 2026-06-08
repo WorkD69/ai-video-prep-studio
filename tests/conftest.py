@@ -1,6 +1,6 @@
 import os
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from fastapi.testclient import TestClient
 
 # Set env vars before importing app so pydantic-settings resolves them
@@ -10,6 +10,18 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 
 from app.main import app  # noqa: E402
 from app.database import get_db  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _patch_active_job_limit():
+    """Default: no active job, acquire_session_lock is a no-op.
+
+    Individual test_job_limit.py tests override these with their own
+    inner `with patch(...)` blocks, which take precedence over this fixture.
+    """
+    with patch("app.api.jobs.find_active_job", return_value=None), \
+         patch("app.api.jobs.acquire_session_lock"):
+        yield
 
 
 @pytest.fixture

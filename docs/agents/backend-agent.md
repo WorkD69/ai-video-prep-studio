@@ -24,7 +24,8 @@ You own these endpoints:
 Constraints:
 - File size limit: 500 MB (reject with 413 + clear error message)
 - Duration limit: 60 min (check after upload, before enqueue)
-- 1 active job per session/IP (check before enqueue; return 429 if limit hit)
+- 1 active job per signed cookie session (`aivps_session`); do not use IP or `X-Forwarded-For`
+  for limiting (check before enqueue; return 429 if limit hit)
 - Uploaded files stored with UUID-based names, NOT original filenames
 
 ### Job Lifecycle
@@ -49,7 +50,7 @@ You manage state transitions for: `pending → queued`, `queued → processing` 
 ```
 id                  UUID primary key
 user_id             UUID foreign key → users.id (nullable)
-session_id          String NOT NULL (server-generated anonymous UUID4 per upload in M002; do NOT read from X-Session-ID, cookies, or IP hash; trusted/signed session lifecycle deferred to a future auth milestone; metadata only — not an auth/security boundary)
+session_id          String NOT NULL (as of M008: the raw UUID from the signed `aivps_session` browser cookie per ADR 004; stable per browser, NOT a per-upload uuid4(); do NOT read from X-Session-ID, raw unsigned headers, or IP hash; always derived via `resolve_session(request)` which reads and verifies the HMAC-signed cookie)
 status              Enum(pending, queued, processing, done, failed)
 original_filename   String (user's filename, stored for display only)
 stored_filename     String (UUID-based, actual stored filename)
@@ -119,7 +120,7 @@ For your domain specifically (full security review is `security-agent`'s job):
 - Validate file type by content (magic bytes), not just extension
 - Validate file size before reading entire file into memory
 - Store uploaded files under `uploads/{uuid}.{ext}`, never under user-provided paths
-- Session ID must never be taken from a user-supplied header; in M002, server generates an anonymous UUID4 per upload; signed sessions and cookies are deferred to a future milestone
+- Session ID is derived from the signed `aivps_session` cookie (ADR 004, M008); always use `resolve_session(request)` — never read raw unsigned headers or generate a fresh uuid4 per upload; `session_id` in the DB is the raw UUID (without signature)
 
 ---
 

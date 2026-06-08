@@ -7,6 +7,68 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-08 - Milestone 008 Security + Reviewer Gates
+
+**[REVIEW] Security Agent approved M008.**
+Clean Security Agent reviewed the full implementation diff and returned
+`SECURITY APPROVED - no High/Critical findings`. Review focus covered HMAC cookie integrity,
+advisory xact lock atomicity, race-reject file cleanup, rollback behavior, no IP / `X-Forwarded-For`
+limiting, no signed cookie logging, and no new dependencies.
+
+**[REVIEW] Codex Reviewer accepted M008 after Low documentation cleanup.**
+Initial reviewer verdict was `ACCEPT WITH CHANGES` with one Low finding: `docs/agents/backend-agent.md`
+still said `session/IP`. The wording was updated to signed cookie session `aivps_session` and explicit
+no IP / `X-Forwarded-For` limiting. Reviewer re-check returned `ACCEPT - finding closed`.
+
+### 2026-06-08 - Milestone 008 Docker Manual Gate
+
+**[REVIEW] Docker/manual gate passed for M008 implementation.**
+Rebuilt app/worker images so the container saw the new Alembic revision, then ran
+`alembic upgrade head`. Docker DB reached `e7f3a1b2c905`, and partial index
+`ix_jobs_active_session` exists on `jobs(session_id)` for active statuses.
+
+**[REVIEW] Same-session limit verified.**
+With the worker stopped to keep the first job active, first upload returned `201 queued` with
+session `a937df8e-5e9a-4626-b78d-054800e3e952`; repeated non-HX upload with the same cookie returned
+`429 {"detail":"active_job_exists"}`; repeated HTMX upload returned a `429` HTML fragment with a link
+to `/status/d594c782-4676-4606-bcd5-63f8a2e09c46` and no `HX-Redirect`.
+
+**[REVIEW] Concurrency gate verified.**
+Two simultaneous uploads with the same cookie/session produced exactly one `201` and one `429`.
+Docker DB contained one active row for session `b0d89006-39b1-444a-a22d-536150a7cf00`, and the
+uploads directory showed only one fresh file for the accepted concurrency request.
+
+**[REVIEW] Migration rollback gate verified.**
+`alembic downgrade d4a8b3c9f012` removed `ix_jobs_active_session`; `alembic upgrade head` restored
+revision `e7f3a1b2c905` and the index. Worker was restarted and `/health` returned OK.
+
+### 2026-06-07 - M008 Implementation (feature/milestone-008-session-limit)
+
+**[IMPL] M008 — 1 active job per session, signed cookie, advisory xact lock.**
+
+Files created/modified:
+- `app/config.py` — 3 new session cookie settings (`session_cookie_name`, `session_cookie_max_age`, `session_cookie_secure`)
+- `app/services/session.py` (NEW) — stdlib HMAC-SHA256 cookie sign/read/set/resolve
+- `app/services/active_job.py` (NEW) — `session_lock_key` (blake2b-8 → signed int64), `acquire_session_lock` (pg_advisory_xact_lock), `find_active_job`
+- `app/api/jobs.py` — cookie session resolution, early pre-check, advisory lock, authoritative re-check, 429 branches (HX/JSON), cookie set on all response branches
+- `app/api/pages.py` — GET / now sets session cookie
+- `app/templates/base.html` — htmx-ext-response-targets CDN script
+- `app/templates/index.html` — hx-ext="response-targets", hx-target-429="#upload-error", #upload-error div
+- `app/templates/partials/upload_error.html` (NEW) — 429 inline fragment with status link
+- `alembic/versions/e7f3a1b2c905_add_active_job_index.py` (NEW) — partial index `ix_jobs_active_session`
+- `docs/agents/backend-agent.md` — session_id contract updated to ADR 004 (signed cookie)
+- `tests/test_session.py` (NEW) — 10 unit tests for HMAC helpers and lock key
+- `tests/test_job_limit.py` (NEW) — 11 tests for limit enforcement (early check, locked check, HTMX/JSON 429, race-reject, cookie contract)
+- `tests/conftest.py` — autouse `_patch_active_job_limit` fixture (default no-op patches)
+- `tests/test_upload.py` — FakeSettings extended with session cookie defaults
+
+**[REVIEW] TDD followed:** RED → GREEN. test_session.py confirmed RED at import (module missing), then all 10 passed. Full suite 186 passed.
+
+**[NOTE] Docker gate completed later** - see the 2026-06-08 Docker/manual gate entry above.
+
+**[NOTE] Security and Reviewer gates completed later** - see the 2026-06-08 Security + Reviewer gates entry above.
+
+
 ### 2026-06-07 - PR #20 Merged (ADR 004 + M008 Spec)
 
 **[REVIEW] PR #20 merged into `main`.**
