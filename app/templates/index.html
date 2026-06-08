@@ -6,7 +6,9 @@
 
     <form hx-post="/jobs/upload"
           hx-encoding="multipart/form-data"
-          hx-indicator="#upload-spinner">
+          hx-indicator="#upload-spinner"
+          hx-ext="response-targets"
+          hx-target-429="#upload-error">
         <div class="mb-6">
             <label class="block text-sm font-medium text-gray-700 mb-2">
                 Video file (MP4, WebM, MKV — max 500 MB)
@@ -31,5 +33,7 @@
             Uploading, please wait…
         </div>
     </form>
+
+    <div id="upload-error" class="mt-4"></div>
 </div>
 {% endblock %}

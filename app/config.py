@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     mock_force_fail: bool = False
     mock_failure_trigger_enabled: bool = False
     cleanup_interval_seconds: int = 600
+    session_cookie_name: str = "aivps_session"
+    session_cookie_max_age: int = 2592000  # 30 days
+    session_cookie_secure: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -102,6 +102,9 @@ class FakeSettings:
         self.upload_dir = upload_dir
         self.max_upload_bytes = max_upload_bytes
         self.rq_job_timeout = 600
+        self.session_cookie_name = "aivps_session"
+        self.session_cookie_max_age = 2592000
+        self.session_cookie_secure = False
 
 
 # ---------------------------------------------------------------------------

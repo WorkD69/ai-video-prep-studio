@@ -3,8 +3,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
@@ -19,16 +20,38 @@ from app.pipeline.upload import (
 )
 from app.redis_client import get_queue
 from app.schemas.job import JobStatusResponse, UploadResponse
+from app.services.active_job import acquire_session_lock, find_active_job
+from app.services.session import resolve_session, set_session_cookie
 from app.workers.process_job import process_job
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+_templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+
+
+def _429_response(request: Request, active: Job, session_id: str) -> HTMLResponse | JSONResponse:
+    """Build the 429 response — HTML fragment for HX, JSON for plain requests."""
+    if request.headers.get("HX-Request") == "true":
+        resp = _templates.TemplateResponse(
+            request,
+            "partials/upload_error.html",
+            {"active_job_id": str(active.id)},
+            status_code=429,
+        )
+        set_session_cookie(resp, session_id)
+        return resp
+    resp = JSONResponse(status_code=429, content={"detail": "active_job_exists"})
+    set_session_cookie(resp, session_id)
+    return resp
+
 
 @router.post("/upload", status_code=201, response_model=UploadResponse)
 async def upload_video(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ) -> UploadResponse | Response:
@@ -39,6 +62,14 @@ async def upload_video(
     if not header:
         raise HTTPException(status_code=400, detail="Empty payload")
     validate_magic_bytes(header, file.content_type or "")
+
+    # --- Session resolution (ADR 004) ---
+    session_id, _ = resolve_session(request)
+
+    # --- Early pre-check (no lock, fast-fail before saving file) ---
+    early_active = find_active_job(db, session_id)
+    if early_active:
+        return _429_response(request, early_active, session_id)
 
     stored_filename = f"{uuid4()}{safe_ext}"
     upload_dir = Path(settings.upload_dir).resolve()
@@ -51,10 +82,19 @@ async def upload_video(
 
     size = await stream_save(file, dest_path, header, settings.max_upload_bytes)
 
+    # --- Advisory xact lock: serialises same-session concurrent uploads ---
+    acquire_session_lock(db, session_id)
+
+    # --- Authoritative re-check (under lock, TOCTOU-safe) ---
+    locked_active = find_active_job(db, session_id)
+    if locked_active:
+        dest_path.unlink(missing_ok=True)
+        db.rollback()
+        return _429_response(request, locked_active, session_id)
+
     original_filename = Path(file.filename or "").name
     now = datetime.utcnow()
     job_id = uuid4()
-    session_id = str(uuid4())
 
     job = Job(
         id=job_id,
@@ -121,17 +161,20 @@ async def upload_video(
     db.commit()
 
     if result.rowcount == 0:
-        # Worker already advanced the job — re-read actual status
         db.refresh(job)
     else:
         job.status = JobStatus.queued
 
+    # --- Cookie contract: set on the actual returned response object ---
     if request.headers.get("HX-Request") == "true":
-        return Response(
+        htmx_resp = Response(
             status_code=200,
             headers={"HX-Redirect": f"/status/{job.id}"},
         )
+        set_session_cookie(htmx_resp, session_id)
+        return htmx_resp
 
+    set_session_cookie(response, session_id)
     return UploadResponse(
         job_id=job.id,
         status=job.status,
