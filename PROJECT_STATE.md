@@ -13,10 +13,10 @@ milestone status, blockers, or next step changes.
 
 | Field | Value |
 |---|---|
-| Active branch | `docs/milestone-009-ffmpeg-probing-screenshots-spec` |
-| Main branch | `main` includes M001-M008 (latest: PR #21 M008 implementation) |
-| Current task | M009 spec drafted (real ffmpeg/ffprobe + screenshots); ADR 005 Accepted. Docs-only, awaiting human review/merge, then implementation |
-| Status | M008 merged. M009 spec + ADR 005 written on docs branch; not committed/pushed (awaiting human action) |
+| Active branch | `main` |
+| Main branch | `main` includes M001-M008 plus ADR 005 / M009 spec (latest: PR #22 docs) |
+| Current task | Start M009 implementation: real ffmpeg/ffprobe probing + screenshots |
+| Status | M009 ADR/spec merged; ready for clean Media/Backend Implementation Agent |
 | Blockers | None |
 
 ## Recently Completed
@@ -37,7 +37,7 @@ milestone status, blockers, or next step changes.
 | M007 implementation - File retention + cleanup | #19 | Done |
 | ADR 004 + M008 spec - Session active-job limit | #20 | Done |
 | M008 implementation - Session active-job limit | #21 | Done |
-| ADR 005 + M009 spec - ffmpeg/ffprobe probing + screenshots | — | Drafted (docs branch, awaiting merge) |
+| ADR 005 + M009 spec - ffmpeg/ffprobe probing + screenshots | #22 | Done |
 
 ## MVP 1 Remaining Scope
 
@@ -52,8 +52,7 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Action
 
-Human review of the M009 spec + ADR 005 on `docs/milestone-009-ffmpeg-probing-screenshots-spec`.
-After merge, implement M009 in a clean Media/Backend Implementation Agent chat on
+Implement M009 in a clean Media/Backend Implementation Agent chat on
 `feature/milestone-009-ffmpeg-probing-screenshots`, using `docs/milestones/009-ffmpeg-probing-screenshots.md`
 and `docs/adr/005-media-processing-interface.md` as the contract. faster-whisper stays M010, deploy
 hardening M011.

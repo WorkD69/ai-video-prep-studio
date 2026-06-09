@@ -7,6 +7,18 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-09 - PR #22 Merged (ADR 005 + M009 Spec)
+
+**[REVIEW] PR #22 merged into `main`.**
+ADR 005 and the M009 ffmpeg/ffprobe probing + screenshot extraction spec are now merged. The latest
+`main` merge commit is `c11ad34`. GitHub Actions `pytest` passed. This was a docs-only PR: no
+implementation code changed.
+
+**[NOTE] Next step.**
+Start M009 implementation in a clean Media Pipeline / Backend Implementation Agent chat on
+`feature/milestone-009-ffmpeg-probing-screenshots`, using ADR 005 and
+`docs/milestones/009-ffmpeg-probing-screenshots.md` as the implementation contract.
+
 ### 2026-06-09 — ADR 005 + Milestone 009 Spec (ffmpeg/ffprobe Probing + Screenshots)
 
 **[DECISION] ADR 005 accepted: media processing interface + duration-enforcement point.**

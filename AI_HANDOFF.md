@@ -11,8 +11,8 @@ history.
 
 ## Role / Process Context
 
-The next chat should start as a clean **Media Pipeline / Backend Implementation Agent** for M009
-(after the docs branch is merged), or as Architect / Process Mentor if the spec needs changes.
+The next chat should start as a clean **Media Pipeline / Backend Implementation Agent** for M009,
+or as Process Mentor if Artem wants one final process check first.
 Respond to Artem in Russian.
 
 Project rules:
@@ -26,15 +26,14 @@ Project rules:
 
 ## Current Branch
 
-`docs/milestone-009-ffmpeg-probing-screenshots-spec` (docs-only; not committed/pushed yet).
-`main` includes M001–M008 (last merge `6962745`, PR #21).
+`main`
 
 ## Current State
 
-M001–M008 are complete and merged. This session was an **Architect / Planner** session that produced
-the M009 spec + ADR 005 (docs only). Implementation has NOT started.
+M001-M008 are complete and merged. ADR 005 + M009 spec are also merged via PR #22. Implementation
+has NOT started.
 
-## What This Session Produced (docs-only)
+## What PR #22 Completed
 
 - `docs/adr/005-media-processing-interface.md` — **Accepted**. Media-processing interface
   (`MediaProber` / `ScreenshotExtractor`, real ffprobe/ffmpeg + fake, selected by `MEDIA_BACKEND`)
@@ -64,14 +63,13 @@ the M009 spec + ADR 005 (docs only). Implementation has NOT started.
 
 ## Exact Current Stop Point
 
-M009 spec + ADR 005 drafted on the docs branch, not committed. Awaiting human review/commit/merge.
+M009 spec + ADR 005 are complete and merged. The project is ready for M009 implementation.
 
 ## Recommended Next Action
 
-1. Human reviews + commits/merges the M009 docs branch (PR), then
-2. Implement M009 in a clean Media/Backend Implementation Agent chat on
-   `feature/milestone-009-ffmpeg-probing-screenshots`, following the spec's Implementation order and
-   Acceptance Criteria. Keep faster-whisper (M010) and deploy hardening (M011) separate.
+Implement M009 in a clean Media/Backend Implementation Agent chat on
+`feature/milestone-009-ffmpeg-probing-screenshots`, following the spec's Implementation order and
+Acceptance Criteria. Keep faster-whisper (M010) and deploy hardening (M011) separate.
 
 ## Open Notes
 
