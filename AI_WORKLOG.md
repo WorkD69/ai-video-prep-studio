@@ -7,6 +7,40 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-09 — ADR 005 + Milestone 009 Spec (ffmpeg/ffprobe Probing + Screenshots)
+
+**[DECISION] ADR 005 accepted: media processing interface + duration-enforcement point.**
+`docs/adr/005-media-processing-interface.md` created with Status: Accepted (human sign-off granted
+2026-06-09). Decisions: (1) `MediaProber` / `ScreenshotExtractor` Protocols with real ffprobe/ffmpeg
+impls + fake impls, selected by `MEDIA_BACKEND` (`ffmpeg`|`fake`) — mirrors ADR 003 Transcriber;
+(2) subprocess safety = list args, `shell=False`, validated path under `upload_dir`, timeouts,
+`capture_output`, `--` NOT mandatory (ffmpeg/ffprobe don't guarantee POSIX `--`); (3) **duration
+enforced synchronously at upload** via ffprobe — > 3600 → 422, exactly 3600 allowed (strict `>`),
+corrupt media → 400, file deleted, `duration_seconds` persisted; (4) screenshots via single-pass
+`fps=1/20` reconciled to the manifest; ZIP/manifest/timecode/0.6 contract unchanged.
+
+**[DECISION] Human-approved design inputs for M009 (4 forks):**
+1. Duration check at upload (sync ffprobe). 2. Real audio extraction deferred to M010 (M009 keeps
+`MockTranscriber`). 3. Screenshots = single-pass `fps=1/20` + rename + reconciliation. 4. Write ADR 005.
+
+**[NOTE] M009 spec drafted: `docs/milestones/009-ffmpeg-probing-screenshots.md`.**
+Real ffprobe duration + 60-min upload reject; real ffmpeg screenshots every 20 s; shared
+`screenshot_timestamps(span)` helper as the single source of truth → invariant
+`metadata.screenshot_count == manifest rows == files in screenshots/` holds by construction.
+`build_zip` gains optional `screenshots_dir` (M004 placeholder path stays green). HTMX reject extends
+the `response-targets` contract (`hx-target-400`/`hx-target-422` → `#upload-error`, new shared
+`upload_error_message.html`; non-HX → JSON). New settings `max_duration_seconds=3600`,
+`media_backend`. Dockerfile gains ffmpeg (shared app+worker image); CI stays binary-free via
+`MEDIA_BACKEND=fake` with one guarded real-binary smoke test. No new DB migration (`duration_seconds`
+already exists). AC1–AC19, test plan, security focus, Docker gate (with ultra-low-fps > 60 min
+fixture, ffprobe-confirmed), implementation order, and the clean Implementation Agent prompt are all
+specified. `docs/agents/media-pipeline-agent.md` update is part of implementation.
+
+**[NOTE] Branch + scope.** Work is on `docs/milestone-009-ffmpeg-probing-screenshots-spec`. Docs-only:
+ADR 005, the M009 spec, and this worklog entry (+ PROJECT_STATE / AI_HANDOFF sync). No implementation
+code written; `app/`, `tests/`, `Dockerfile`, CI workflow untouched. Implementation is a separate clean
+chat on `feature/milestone-009-ffmpeg-probing-screenshots`. Not committed/pushed — awaiting human action.
+
 ### 2026-06-08 - PR #21 Merged (M008 Session Active-Job Limit)
 
 **[REVIEW] PR #21 merged into `main`.**

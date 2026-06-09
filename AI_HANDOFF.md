@@ -7,12 +7,13 @@ history.
 
 ## Last Updated
 
-2026-06-08
+2026-06-09
 
 ## Role / Process Context
 
-The next chat should start as Codex Process Mentor / Tech Lead or Architect / Planner for
-AI Video Prep Studio. Respond to Artem in Russian.
+The next chat should start as a clean **Media Pipeline / Backend Implementation Agent** for M009
+(after the docs branch is merged), or as Architect / Process Mentor if the spec needs changes.
+Respond to Artem in Russian.
 
 Project rules:
 - `CLAUDE.md` is the source of stack, quality gates, and Enterprise Vibe Coding rules.
@@ -25,54 +26,56 @@ Project rules:
 
 ## Current Branch
 
-`main`
+`docs/milestone-009-ffmpeg-probing-screenshots-spec` (docs-only; not committed/pushed yet).
+`main` includes M001–M008 (last merge `6962745`, PR #21).
 
 ## Current State
 
-M001-M008 are complete and merged. The project is ready to choose/spec the next MVP media
-milestone.
+M001–M008 are complete and merged. This session was an **Architect / Planner** session that produced
+the M009 spec + ADR 005 (docs only). Implementation has NOT started.
 
-Latest merge details:
-- PR: `#21 feat: Add session active job limit`
-- Merge commit: `6962745`
-- CI: GitHub Actions `pytest` passed
-- Local `main` is at the PR #21 merge commit
+## What This Session Produced (docs-only)
 
-## What PR #21 Completed
+- `docs/adr/005-media-processing-interface.md` — **Accepted**. Media-processing interface
+  (`MediaProber` / `ScreenshotExtractor`, real ffprobe/ffmpeg + fake, selected by `MEDIA_BACKEND`)
+  and the duration-enforcement decision.
+- `docs/milestones/009-ffmpeg-probing-screenshots.md` — full M009 spec (AC1–AC19, test plan,
+  security focus, Docker gate, implementation order, clean Implementation Agent prompt).
+- Updated `PROJECT_STATE.md`, `AI_HANDOFF.md`, `AI_WORKLOG.md`.
+- **No implementation code** — `app/`, `tests/`, `Dockerfile`, CI workflow untouched.
 
-- Implemented signed-cookie sessions with stdlib HMAC-SHA256.
-- Enforced 1 active job per signed-cookie session with PostgreSQL advisory xact lock.
-- Added HTMX inline 429 and JSON 429 handling.
-- Added Alembic partial index `ix_jobs_active_session`.
-- Added session/job-limit tests.
-- Updated backend-agent session contract.
-- Security Agent approved, Codex Reviewer accepted after Low doc cleanup, Docker/manual gate passed.
+## M009 Locked Decisions (human-approved 2026-06-09)
 
-## M008 Decisions Now Implemented
-
-- Session mechanism: signed browser cookie `aivps_session`.
-- Signing: Python stdlib HMAC-SHA256 only (`hmac`, `hashlib`, `base64`), no new dependency.
-- Expiry: browser-side `Max-Age`; no server-side expired-cookie rejection.
-- Limit key: signed-cookie session, not IP / `X-Forwarded-For`.
-- Race safety: PostgreSQL transaction-level advisory lock.
-- HTMX 429: inline fragment via `response-targets`.
-- Schema: Alembic partial index for active jobs by session.
-- Agent-card update: `docs/agents/backend-agent.md` completed.
+- **D1** — 60-min limit enforced **at upload** via synchronous ffprobe (before enqueue); reject +
+  delete file; `duration_seconds` written to the job. Reject: 422 (> 60 min), 400 (corrupt media).
+  Exactly 3600 s allowed (strict `>`).
+- **D2** — Real audio extraction (`ffmpeg -vn`) deferred to M010; M009 keeps `MockTranscriber`.
+- **D3** — Screenshots via single-pass `ffmpeg -vf fps=1/20`, renamed to `frame_NNNNNNs.jpg`,
+  reconciled to a shared `screenshot_timestamps(span)` helper (single source of truth → invariant
+  holds by construction).
+- **D4** — ADR 005 written (Accepted).
+- Subprocess policy: list args, `shell=False`, validated path under `upload_dir`, timeouts,
+  `capture_output`; **`--` not mandatory** (ffmpeg/ffprobe don't guarantee POSIX `--`; use only if
+  Docker smoke confirms).
+- HTMX reject: extend the `response-targets` contract with `hx-target-400`/`hx-target-422` →
+  `#upload-error`, new shared partial `upload_error_message.html`; non-HX → JSON 400/422.
+- CI stays binary-free via `MEDIA_BACKEND=fake`; one guarded real-binary smoke test (skipif no ffmpeg).
+- Dockerfile gains ffmpeg (shared app+worker image); no new DB migration (`duration_seconds` exists).
 
 ## Exact Current Stop Point
 
-M008 is complete and merged. State files need this post-merge sync committed, then the project should
-enter planning for the next MVP media milestone.
+M009 spec + ADR 005 drafted on the docs branch, not committed. Awaiting human review/commit/merge.
 
 ## Recommended Next Action
 
-Start an Architect / Planner chat to choose and spec the next milestone. Recommended next candidate:
-real ffmpeg/ffprobe media probing + screenshot extraction. Keep faster-whisper transcription as a
-separate milestone unless the planner finds a strong reason to combine them.
+1. Human reviews + commits/merges the M009 docs branch (PR), then
+2. Implement M009 in a clean Media/Backend Implementation Agent chat on
+   `feature/milestone-009-ffmpeg-probing-screenshots`, following the spec's Implementation order and
+   Acceptance Criteria. Keep faster-whisper (M010) and deploy hardening (M011) separate.
 
 ## Open Notes
 
 - `datetime.utcnow()` warnings remain deferred project-wide technical debt.
-- M004 still uses mock transcription/screenshots; real media processing remains deferred.
-- Duration limit enforcement still depends on ffprobe.
+- M004 still uses mock transcription/placeholder screenshots; M009 makes screenshots + duration real,
+  M010 makes transcription real.
 - Old files from earlier smoke runs may still exist in `uploads/` / `outputs/`.

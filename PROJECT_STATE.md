@@ -7,16 +7,16 @@ milestone status, blockers, or next step changes.
 
 ## Updated
 
-2026-06-08
+2026-06-09
 
 ## Current State
 
 | Field | Value |
 |---|---|
-| Active branch | `main` |
+| Active branch | `docs/milestone-009-ffmpeg-probing-screenshots-spec` |
 | Main branch | `main` includes M001-M008 (latest: PR #21 M008 implementation) |
-| Current task | Post-M008 state sync; choose/spec next MVP media milestone |
-| Status | M008 merged; CI, Security, Reviewer, and Docker/manual gates passed |
+| Current task | M009 spec drafted (real ffmpeg/ffprobe + screenshots); ADR 005 Accepted. Docs-only, awaiting human review/merge, then implementation |
+| Status | M008 merged. M009 spec + ADR 005 written on docs branch; not committed/pushed (awaiting human action) |
 | Blockers | None |
 
 ## Recently Completed
@@ -37,6 +37,7 @@ milestone status, blockers, or next step changes.
 | M007 implementation - File retention + cleanup | #19 | Done |
 | ADR 004 + M008 spec - Session active-job limit | #20 | Done |
 | M008 implementation - Session active-job limit | #21 | Done |
+| ADR 005 + M009 spec - ffmpeg/ffprobe probing + screenshots | — | Drafted (docs branch, awaiting merge) |
 
 ## MVP 1 Remaining Scope
 
@@ -51,15 +52,18 @@ milestone status, blockers, or next step changes.
 
 ## Recommended Next Action
 
-Choose and spec the next MVP media milestone. Recommended next candidate: real ffmpeg/ffprobe
-media probing + screenshot extraction, because it unlocks duration enforcement and replaces the
-remaining placeholder screenshot path while keeping faster-whisper as a separate later milestone.
+Human review of the M009 spec + ADR 005 on `docs/milestone-009-ffmpeg-probing-screenshots-spec`.
+After merge, implement M009 in a clean Media/Backend Implementation Agent chat on
+`feature/milestone-009-ffmpeg-probing-screenshots`, using `docs/milestones/009-ffmpeg-probing-screenshots.md`
+and `docs/adr/005-media-processing-interface.md` as the contract. faster-whisper stays M010, deploy
+hardening M011.
 
 ## Known Technical Debt
 
 - `datetime.utcnow()` deprecation warnings remain deferred.
-- M004 still uses mock transcription and placeholder screenshots; real media processing remains deferred.
-- Duration limit enforcement still depends on real ffprobe.
+- M004 still uses mock transcription and placeholder screenshots; real screenshots are specced in M009,
+  real transcription stays M010.
+- Duration limit enforcement is specced in M009 (upload-time ffprobe); not yet implemented.
 
 ## Process Notes
 
