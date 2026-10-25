@@ -8,6 +8,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aivps
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-set-SECRET_KEY-env-var}
+      - URL_EXTRA_ALLOWED_NETWORKS=${URL_EXTRA_ALLOWED_NETWORKS:-[]}
     depends_on:
       postgres:
         condition: service_healthy
@@ -27,6 +28,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - RQ_REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-set-SECRET_KEY-env-var}
+      - URL_EXTRA_ALLOWED_NETWORKS=${URL_EXTRA_ALLOWED_NETWORKS:-[]}
       - HF_HOME=/hf-cache
       - HF_HUB_DISABLE_SYMLINKS_WARNING=1
     depends_on:
@@ -46,14 +48,13 @@ services:
               count: 1
               capabilities: [gpu]
 
+  # postgres / redis are reachable only inside the compose network (no host ports)
   postgres:
     image: postgres:15-alpine
     environment:
       POSTGRES_DB: aivps
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    ports:
-      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -64,8 +65,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

@@ -306,3 +306,19 @@ def test_origin_rules(client, headers, status):
     if status == 403:
         assert json.loads(resp.text)["detail"] == "cross_origin_rejected"
 
+
+
+def test_fake_ip_range_rejected_by_default(monkeypatch):
+    monkeypatch.setattr(url_source.settings, "url_extra_allowed_networks", [])
+    monkeypatch.setattr(url_source.socket, "getaddrinfo", _fake_resolver("198.18.25.95"))
+    with pytest.raises(UrlSourceError, match="forbidden_host"):
+        validate_url("https://www.youtube.com/watch?v=x")
+
+
+def test_fake_ip_range_allowed_when_configured(monkeypatch):
+    monkeypatch.setattr(url_source.settings, "url_extra_allowed_networks", ["198.18.0.0/15"])
+    monkeypatch.setattr(url_source.socket, "getaddrinfo", _fake_resolver("198.18.25.95"))
+    assert validate_url("https://www.youtube.com/watch?v=x") == "https://www.youtube.com/watch?v=x"
+    monkeypatch.setattr(url_source.socket, "getaddrinfo", _fake_resolver("192.168.1.1"))
+    with pytest.raises(UrlSourceError, match="forbidden_host"):
+        validate_url("https://router.example/")  # only the configured range is trusted

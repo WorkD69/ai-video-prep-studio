@@ -30,6 +30,8 @@ from urllib.parse import urlsplit
 
 import structlog
 
+from app.config import settings
+
 logger = structlog.get_logger()
 
 _MAX_URL_LENGTH = 2048
@@ -66,6 +68,8 @@ def _is_public(address: str) -> bool:
     ip = ipaddress.ip_address(address.split("%", 1)[0])
     if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
         ip = ip.ipv4_mapped
+    if any(ip in ipaddress.ip_network(net) for net in settings.url_extra_allowed_networks):
+        return True
     return ip.is_global and not ip.is_multicast
 
 
