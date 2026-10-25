@@ -21,6 +21,7 @@ os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 
+from app.pipeline.frames import FakeFrameSelector  # noqa: E402
 from app.pipeline.media import (  # noqa: E402
     FakeMediaProber,
     FakeScreenshotExtractor,
@@ -209,7 +210,7 @@ class TestRunMediaPipeline:
         upload_dir, output_dir = pipeline_env
         job = _make_pipeline_job(upload_dir, duration_seconds=75.0)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
@@ -227,7 +228,7 @@ class TestRunMediaPipeline:
         upload_dir, _ = pipeline_env
         job = _make_pipeline_job(upload_dir, duration_seconds=75.0)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
         with zipfile.ZipFile(zip_path) as zf:
             data = zf.read("screenshots/frame_000000s.jpg")
@@ -242,7 +243,7 @@ class TestRunMediaPipeline:
         upload_dir, _ = pipeline_env
         job = _make_pipeline_job(upload_dir, duration_seconds=None)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(duration=50.0), FakeScreenshotExtractor())
+        zip_path = run_media_pipeline(job, FakeMediaProber(duration=50.0), FakeFrameSelector())
 
         with zipfile.ZipFile(zip_path) as zf:
             metadata = json.loads(zf.read("metadata.json"))
@@ -256,7 +257,7 @@ class TestRunMediaPipeline:
         upload_dir, _ = pipeline_env
         job = _make_pipeline_job(upload_dir, duration_seconds=15.0)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
@@ -279,7 +280,7 @@ class TestRunMediaPipeline:
         job.input_path = str(evil)
 
         with pytest.raises(MediaError):
-            run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+            run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
     def test_staging_cleaned_on_success(self, pipeline_env):
         from app.pipeline.media_pipeline import run_media_pipeline
@@ -287,7 +288,7 @@ class TestRunMediaPipeline:
         upload_dir, output_dir = pipeline_env
         job = _make_pipeline_job(upload_dir)
 
-        run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+        run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
         assert not (output_dir / "staging" / str(job.id)).exists()
 
@@ -297,12 +298,14 @@ class TestRunMediaPipeline:
         upload_dir, output_dir = pipeline_env
         job = _make_pipeline_job(upload_dir)
 
-        class ExplodingExtractor:
-            def extract(self, input_path, out_dir, timestamps):
+        class ExplodingSelector:
+            mode = "exploding"
+
+            def select(self, input_path, out_dir, duration):
                 raise MediaError("screenshot_extraction_failed")
 
         with pytest.raises(MediaError):
-            run_media_pipeline(job, FakeMediaProber(), ExplodingExtractor())
+            run_media_pipeline(job, FakeMediaProber(), ExplodingSelector())
 
         assert not (output_dir / "staging" / str(job.id)).exists()
 
@@ -313,7 +316,7 @@ class TestRunMediaPipeline:
         upload_dir, _ = pipeline_env
         job = _make_pipeline_job(upload_dir)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeScreenshotExtractor())
+        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
 
         with zipfile.ZipFile(zip_path) as zf:
             metadata = json.loads(zf.read("metadata.json"))

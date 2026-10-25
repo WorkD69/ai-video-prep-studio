@@ -15,12 +15,11 @@ from pathlib import Path
 
 from app.config import settings
 from app.models.job import Job
+from app.pipeline.frames import FrameSelector, select_frames
 from app.pipeline.media import (
     MediaError,
     MediaProber,
-    ScreenshotExtractor,
     extract_audio,
-    screenshot_timestamps,
 )
 from app.pipeline.output_assembly import (
     build_failed_parts_md,
@@ -38,7 +37,8 @@ from app.pipeline.zip_packaging import make_safe_stem, build_zip
 def run_media_pipeline(
     job: Job,
     prober: MediaProber,
-    extractor: ScreenshotExtractor,
+    frame_selector: FrameSelector,
+    fallback_selector: FrameSelector | None = None,
 ) -> Path:
     """Orchestrate the output pipeline. Returns absolute path to produced ZIP.
 
@@ -70,10 +70,13 @@ def run_media_pipeline(
         else:
             span = prober.probe_duration(str(input_path))
 
-        # Steps 3-4: shared timestamps drive both extractor and manifest
-        timestamps = screenshot_timestamps(span)
+        # Steps 3-4: frame selection (crv scene-change, fixed-interval fallback);
+        # the selected seconds drive the manifest (invariant by construction)
         screenshots_dir = staging_dir / "screenshots"
-        frames = extractor.extract(str(input_path), screenshots_dir, timestamps)
+        frames, _frames_mode = select_frames(
+            frame_selector, fallback_selector, str(input_path), screenshots_dir, span
+        )
+        timestamps = [frame.second for frame in frames]
 
         # Step 6: transcription (ADR 006) — real 16 kHz audio for whisper
         audio_path = staging_dir / "audio.wav"
