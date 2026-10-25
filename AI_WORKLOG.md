@@ -7,6 +7,34 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-10-25 — ADR 006 Pivot (crv frames, real transcription, URL intake, package v2)
+
+**[DECISION] Local single-user tool; crv as frame engine only (ADR 006, light mode).**
+Open-source survey found no end-to-end "video → LLM ZIP" tool; claude-real-video (MIT) has the best
+frame selection. Audited commit `ab4b9b2b…` (no malware/telemetry/install-time code). Its default
+whisper path was replaced by our `FasterWhisperTranscriber` (hotwords, `av<16`).
+
+**[IMPL] Stages 2–7 on stacked branches; 353 tests; Docker E2E passed.**
+URL job (51 min, manual subtitles, 31 chapters, 256 frames 1280px): 7 min. File job (whisper turbo
+on RTX 3070): 12 min. Hotwords: "Claude" 72× Latin vs 12× Cyrillic (was almost all "Клод").
+
+**[REVIEW] Clean-context security review: 0 Critical/High, 2 Medium + 5 Low — all fixed.**
+Connect-time DNS guard for yt-dlp (thread-local), untrusted metadata flattened in documents +
+README trust section, size/duration enforced on real bytes, partial-download cleanup, subtitle
+code validation, credentials in URLs rejected, full-origin CSRF check, non-root image.
+
+**[FIX] Learning entries (agent mistakes this session):**
+- Two identical compose services each built the image → parallel 2 GB CUDA downloads → corrupted
+  wheel (pip hash mismatch). Rule: one `build:` per shared image (`worker` uses `image:` +
+  `pull_policy: never`); heavy wheels in their own cached layer.
+- Built a 5 GB image while Docker's vhdx lived on a nearly full C: → C: hit 0 bytes, Docker crashed.
+  Rule: check free space *inside* the Docker disk and on the host drive before large builds.
+- Restarted Docker Desktop / pruned all build cache without knowing another agent (hackathon) used
+  it. Rule (recorded in AI_HANDOFF): never restart Docker, `wsl --shutdown` or prune shared caches
+  without asking.
+- SSRF guard rejected every site: a fake-IP VPN resolves all hosts to 198.18.0.0/15. Added the
+  explicit `URL_EXTRA_ALLOWED_NETWORKS` setting instead of weakening the default.
+
 ### 2026-06-11 — M009 Implementation (Real ffprobe Probing + ffmpeg Screenshots)
 
 **[IMPL] M009 implemented on `feature/milestone-009-ffmpeg-probing-screenshots` (TDD, RED→GREEN per stage).**
