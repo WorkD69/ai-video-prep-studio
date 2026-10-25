@@ -43,6 +43,20 @@ def safe_delete(path_str: str, allowed_dir: Path, log_context: dict) -> str:
         return "error"
 
 
+def delete_download_leftovers(input_path: str, upload_dir: Path, log_context: dict) -> int:
+    """Delete <uuid-stem>.* siblings of a job's input file (partial yt-dlp
+    downloads). The stem is a server-generated UUID, so the glob only matches
+    this job's files. Returns the number of files deleted."""
+    stem = Path(input_path).stem
+    deleted = 0
+    for leftover in upload_dir.glob(f"{stem}.*"):
+        if leftover.name == Path(input_path).name:
+            continue
+        if safe_delete(str(leftover), allowed_dir=upload_dir, log_context=log_context) == "deleted":
+            deleted += 1
+    return deleted
+
+
 def cleanup_expired_jobs(
     db: Session,
     *,
@@ -81,6 +95,11 @@ def cleanup_expired_jobs(
                     deleted_inputs += 1
                 elif outcome in ("traversal", "error"):
                     errors += 1
+                deleted_inputs += delete_download_leftovers(
+                    job.input_path,
+                    upload_dir,
+                    log_context={"job_id": str(job.id), "stage": "cleanup"},
+                )
 
         except Exception as exc:
             logger.error(

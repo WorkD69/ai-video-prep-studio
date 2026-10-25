@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False
     # Host / Origin allowlist for the local tool (DNS-rebinding + CSRF guard)
     allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
+    allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
 
     model_config = SettingsConfigDict(
         env_file=".env",

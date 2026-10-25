@@ -36,7 +36,7 @@ code, list-argv subprocess only. Test run on a 51-min Russian video:
 
 ### 1. crv is the frame engine only
 
-- Installed from the audited commit tarball (not PyPI), in `requirements-media.txt` (Docker only).
+- Installed from the audited commit via `git+…@<sha>` (not PyPI), in `requirements-crv.txt` (Docker only).
 - Called as a library: `claude_real_video.process(video, out, do_transcribe=False, frame_width=1280,
   dedup_threshold=15, max_frames=N)` with `N = min(300, max(20, ceil(duration_min * 5)))`.
 - Two monkeypatches, isolated in `app/pipeline/frames_crv.py` and guarded by a canary test:

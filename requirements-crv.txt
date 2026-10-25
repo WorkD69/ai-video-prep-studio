@@ -1,0 +1,3 @@
+# claude-real-video (frame engine, ADR 006): the audited commit only, never the PyPI build.
+# A git commit pin is content-addressed — git verifies the tree matches the SHA.
+claude-real-video @ git+https://github.com/HUANGCHIHHUNGLeo/claude-real-video@ab4b9b2b23790f5d63a6d15165d3d8ba284c6023
