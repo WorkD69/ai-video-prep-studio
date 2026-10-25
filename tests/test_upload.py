@@ -101,6 +101,7 @@ class FakeSettings:
     def __init__(self, upload_dir: str, max_upload_bytes: int):
         self.upload_dir = upload_dir
         self.max_upload_bytes = max_upload_bytes
+        self.max_duration_seconds = 3600
         self.rq_job_timeout = 600
         self.session_cookie_name = "aivps_session"
         self.session_cookie_max_age = 2592000

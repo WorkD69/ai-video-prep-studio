@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.job import Job, JobStatus
+from app.pipeline.media import MediaError, get_media_prober
 from app.pipeline.upload import (
     stream_save,
     validate_content_type,
@@ -44,6 +45,27 @@ def _429_response(request: Request, active: Job, session_id: str) -> HTMLRespons
         set_session_cookie(resp, session_id)
         return resp
     resp = JSONResponse(status_code=429, content={"detail": "active_job_exists"})
+    set_session_cookie(resp, session_id)
+    return resp
+
+
+def _upload_reject_response(
+    request: Request, session_id: str, status_code: int, message: str
+) -> HTMLResponse | JSONResponse:
+    """Build the 400/422 upload-reject response — HTML fragment for HX, JSON otherwise.
+
+    The message is a fixed safe string — never raw ffprobe stderr or tracebacks.
+    """
+    if request.headers.get("HX-Request") == "true":
+        resp = _templates.TemplateResponse(
+            request,
+            "partials/upload_error_message.html",
+            {"message": message},
+            status_code=status_code,
+        )
+        set_session_cookie(resp, session_id)
+        return resp
+    resp = JSONResponse(status_code=status_code, content={"detail": message})
     set_session_cookie(resp, session_id)
     return resp
 
@@ -82,6 +104,30 @@ async def upload_video(
 
     size = await stream_save(file, dest_path, header, settings.max_upload_bytes)
 
+    # --- Upload-time duration enforcement (M009, ADR 005) ---
+    # ffprobe runs on the trusted UUID-named path under upload_dir; rejects
+    # delete the saved file before any job row is created (no orphans).
+    prober = get_media_prober()
+    try:
+        duration = prober.probe_duration(str(dest_path))
+    except MediaError:
+        dest_path.unlink(missing_ok=True)
+        logger.info("upload_rejected_unreadable_media", stage="upload")
+        return _upload_reject_response(
+            request, session_id, 400, "Invalid or unreadable media file"
+        )
+
+    if duration > settings.max_duration_seconds:
+        dest_path.unlink(missing_ok=True)
+        logger.info(
+            "upload_rejected_duration_limit",
+            stage="upload",
+            duration_seconds=duration,
+        )
+        return _upload_reject_response(
+            request, session_id, 422, "Video exceeds the 60-minute limit"
+        )
+
     # --- Advisory xact lock: serialises same-session concurrent uploads ---
     acquire_session_lock(db, session_id)
 
@@ -104,6 +150,7 @@ async def upload_video(
         stored_filename=stored_filename,
         input_path=str(dest_path),
         video_size_bytes=size,
+        duration_seconds=duration,
         created_at=now,
         expires_at=now + timedelta(hours=24),
     )

@@ -7,11 +7,10 @@ They return strings ready to be written into the ZIP package.
 import json
 from datetime import datetime, timezone
 
+from app.pipeline.media import screenshot_timestamps
 from app.pipeline.silence import reason_for_exclusion
 from app.pipeline.timecodes import format_hhmmss, to_global_time
 from app.pipeline.transcriber import TranscriptSegment
-
-_SCREENSHOT_INTERVAL = 20  # seconds, locked
 
 
 def build_transcript_md(
@@ -122,32 +121,32 @@ def build_screenshots_manifest_csv(
     all_segments: list[TranscriptSegment],
     duration_seconds: float | None = None,
     chunk_id: str = "chunk_001",
+    timestamps: list[int] | None = None,
 ) -> str:
     """Build the screenshots manifest CSV.
 
-    Screenshots are taken every 20 seconds starting at 0.
-    Span is determined by duration_seconds if provided, otherwise by max end
-    time of all_segments. Timestamps: 0, 20, 40, ... while timestamp < span.
+    If timestamps is provided, it is used directly (the shared
+    screenshot_timestamps list — single source of truth with the extractor).
+    Otherwise span is determined by duration_seconds if provided, or by max
+    end time of all_segments, and timestamps derive from screenshot_timestamps.
     """
-    if duration_seconds is not None:
-        span = duration_seconds
-    elif all_segments:
-        span = max(seg.end for seg in all_segments)
-    else:
-        span = 0.0
+    if timestamps is None:
+        if duration_seconds is not None:
+            span = duration_seconds
+        elif all_segments:
+            span = max(seg.end for seg in all_segments)
+        else:
+            span = 0.0
+        timestamps = screenshot_timestamps(span)
 
     rows: list[str] = [
         "frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id"
     ]
-    timestamp = 0
-    frame_index = 0
-    while timestamp < span:
+    for frame_index, timestamp in enumerate(timestamps):
         filename = f"frame_{timestamp:06d}s.jpg"
         rows.append(
             f"{frame_index},{filename},{timestamp},{format_hhmmss(float(timestamp))},{chunk_id}"
         )
-        frame_index += 1
-        timestamp += _SCREENSHOT_INTERVAL
 
     return "\n".join(rows)
 

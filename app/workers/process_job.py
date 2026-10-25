@@ -7,7 +7,8 @@ from sqlalchemy import update
 from app.config import settings
 from app.database import SessionLocal
 from app.models.job import Job, JobStatus
-from app.pipeline.mock_pipeline import run_mock_output_pipeline
+from app.pipeline.media import get_media_backend
+from app.pipeline.media_pipeline import run_media_pipeline
 from app.services.cleanup import safe_delete
 
 logger = structlog.get_logger()
@@ -52,7 +53,8 @@ def process_job(job_id: str) -> None:
         if should_fail:
             raise RuntimeError("mock_processing_failure")
 
-        zip_path = run_mock_output_pipeline(job)
+        prober, extractor = get_media_backend()
+        zip_path = run_media_pipeline(job, prober, extractor)
 
         # Guarded success write: processing -> done
         result = db.execute(

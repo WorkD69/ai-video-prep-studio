@@ -7,6 +7,51 @@ Types: DECISION, IMPL, REVIEW, FIX, DEPLOY, NOTE
 
 ## Log
 
+### 2026-06-11 — M009 Implementation (Real ffprobe Probing + ffmpeg Screenshots)
+
+**[IMPL] M009 implemented on `feature/milestone-009-ffmpeg-probing-screenshots` (TDD, RED→GREEN per stage).**
+New: `app/pipeline/media.py` (`MediaError`, `MediaProber`/`ScreenshotExtractor` Protocols,
+`FfprobeMediaProber`, `FfmpegScreenshotExtractor`, `FakeMediaProber`, `FakeScreenshotExtractor`,
+`screenshot_timestamps`, `get_media_prober`, `get_media_backend`), `app/pipeline/media_pipeline.py`
+(`run_media_pipeline`: path validation under `upload_dir`, shared timestamps → extractor + manifest,
+MockTranscriber, `build_zip(screenshots_dir=...)`, try/finally staging cleanup),
+`app/templates/partials/upload_error_message.html`. Modified: `app/api/jobs.py` (upload-time ffprobe
+via `get_media_prober`; MediaError → 400, > 3600 → 422, == 3600 allowed; file deleted before any job
+row; `duration_seconds` persisted; `_upload_reject_response` mirrors `_429_response`),
+`app/pipeline/zip_packaging.py` (`screenshots_dir: Path | None = None` + invariant guard; M004
+placeholder path intact), `app/pipeline/output_assembly.py` (manifest consumes shared
+`timestamps`), `app/workers/process_job.py` (calls `run_media_pipeline` with `get_media_backend()`),
+`app/config.py` (`max_duration_seconds=3600`, `media_backend="ffmpeg"`), `app/templates/index.html`
+(`hx-target-400`/`hx-target-422` → `#upload-error`), `Dockerfile` (apt ffmpeg), CI
+(`MEDIA_BACKEND=fake`), `docs/agents/media-pipeline-agent.md` (real producer + backend selection).
+Tests: new `tests/unit/test_media.py` (helper, fakes, mocked-subprocess prober/extractor incl.
+NaN/inf/≤0/timeout/missing-binary and argv-safety assertions), `tests/integration/test_media_pipeline.py`
+(invariant, staging cleanup, path validation, AC16 short video), `tests/test_upload_duration.py`
+(422/400/boundary-3600/HX-inline/non-HX-JSON, file-deleted + no-job + no-enqueue),
+`tests/integration/test_media_smoke.py` (guarded real-binary). Updated patch targets in
+`tests/test_worker.py` / `tests/test_cleanup.py`; `FakeSettings` in upload/limit/pages tests gained
+`max_duration_seconds`; conftest sets `MEDIA_BACKEND=fake`. Full suite: **254 passed**;
+`git diff --check` clean.
+
+**[FIX] ffmpeg `fps=1/20` drops the final 20 s slot — fixed with `eof_action=pass`.**
+Real-binary smoke (spec open question #2) showed ffmpeg (8.1 host, 7.1.4 container) emits
+`round(duration/20)` frames: a 65 s video produced only 3 frames (0/20/40, no `frame_000060s`) on
+both 1 fps and 25 fps sources. Filter changed to `fps=1/20:eof_action=pass` — the final slot is always
+delivered; a possible extra trailing frame is dropped by the spec'd reconciliation. Verified by
+showinfo pts (0/20/40/60) and the smoke suite on host and in the container.
+
+**[DEPLOY] Docker/manual gate executed — all green.**
+`alembic upgrade head` OK; `docker compose up -d --build app worker` OK; `/health` =
+status=ok, db=ok, redis=ok; `ffprobe -version` in container = 7.1.4; in-container smoke tests 3
+passed. Manual smoke: `short.mp4` (testsrc 65 s) → job done, ZIP has 4 **real** JPEG frames
+(~2.4-2.6 KB each, incl. `frame_000060s.jpg`), `metadata.duration_seconds=65.0`,
+screenshot_count == manifest rows == files == 4, transcriber stays MockTranscriber.
+`toolong.mp4` (testsrc rate=1/60 duration=3601, **ffprobe-confirmed 3660 s**) → 422 JSON and 422
+HTML fragment (HX), file deleted, no job. Corrupt ftyp-magic file → 400, file deleted, no job.
+
+**[NOTE] Not committed/pushed — awaiting human action.** Next: clean Security Agent review +
+clean Codex Reviewer (diff + AC1-AC19 only), then human sign-off and merge.
+
 ### 2026-06-09 - PR #22 Merged (ADR 005 + M009 Spec)
 
 **[REVIEW] PR #22 merged into `main`.**

@@ -8,6 +8,8 @@
           hx-encoding="multipart/form-data"
           hx-indicator="#upload-spinner"
           hx-ext="response-targets"
+          hx-target-400="#upload-error"
+          hx-target-422="#upload-error"
           hx-target-429="#upload-error">
         <div class="mb-6">
             <label class="block text-sm font-medium text-gray-700 mb-2">
