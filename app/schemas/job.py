@@ -11,7 +11,7 @@ class UploadResponse(BaseModel):
     status: JobStatus
     session_id: str
     original_filename: str
-    video_size_bytes: int
+    video_size_bytes: int | None
     created_at: datetime
 
 
