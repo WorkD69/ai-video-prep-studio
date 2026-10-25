@@ -57,6 +57,15 @@
 
 Проверка, что всё живо: http://127.0.0.1:8000/health → `status=ok, db=ok, redis=ok`.
 
+### После перезагрузки
+
+У всех контейнеров `restart: unless-stopped`: стек сам поднимается, как только запущен Docker Desktop,
+и воркер сам перезапускается после обрыва связи с Redis (например, после сна ноутбука).
+Нужно только, чтобы Docker Desktop был запущен — либо вручную, либо включи
+Settings → General → «Start Docker Desktop when you sign in to your computer».
+Остановить сервис совсем: `docker compose stop` (после этого сам он уже не поднимется,
+вернуть — `docker compose up -d`).
+
 ## Скорость (RTX 3070, видео 51 мин)
 
 - распознавание речи: ~4 мин;
