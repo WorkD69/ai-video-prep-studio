@@ -1,5 +1,17 @@
 # Roadmap
 
+## Pivot — ADR 006 (2026-10-25)
+
+The product is now a **local single-user tool**. MVP 1 scope changes:
+
+- Input: uploaded file **or a link** (any yt-dlp site), max 3 h / 5 GiB
+- Frames: scene-change keyframes via claude-real-video (crv), ~5/min, max 300 (fallback: every 20 s)
+- Transcript: author's manual subtitles when present, otherwise faster-whisper `turbo` on GPU
+- Package v2: README.md + transcript.md with frames inline + chapters (see ADR 006)
+- Smart slide/scene detection moves from MVP 3 into MVP 1 (provided by crv)
+
+---
+
 ## MVP 1 — End-to-End (Current Target)
 
 **Goal:** Working product. Upload video → download ZIP → use in ChatGPT/Claude.
