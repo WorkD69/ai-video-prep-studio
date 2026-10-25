@@ -1,37 +1,76 @@
-"""Real media pipeline orchestration for Milestone 009.
+"""Worker pipeline orchestration — LLM package v2 (ADR 006).
 
-Screenshots come from an injected ScreenshotExtractor (real ffmpeg or fake);
-duration comes from job.duration_seconds (probed at upload) with a defensive
-in-worker probe fallback. Transcription stays MockTranscriber until M010.
+    [url]  download (≤720p) + author's subtitles   stage=downloading
+           frame selection (crv, ffmpeg fallback)   stage=frames
+           subtitles → VTT segments, else whisper   stage=transcribing
+           documents + ZIP                          stage=packaging
 
 SECURITY: job.input_path is resolved and validated under upload_dir before
-any media call. Only job.id (UUID) is used for the staging dir name.
-original_filename is used only for display in documents.
+any media call (URL jobs download to that same trusted UUID-named path).
+Only job.id (UUID) is used for the staging dir name. original_filename and
+the video title are used only as document text and a sanitised ZIP stem.
 """
 
 import shutil
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
+
+import structlog
 
 from app.config import settings
 from app.models.job import Job
 from app.pipeline.frames import FrameSelector, select_frames
-from app.pipeline.media import (
-    MediaError,
-    MediaProber,
-    extract_audio,
-)
+from app.pipeline.media import MediaError, MediaProber, extract_audio
 from app.pipeline.output_assembly import (
+    PackageInfo,
     build_failed_parts_md,
     build_metadata_json,
+    build_readme_md,
     build_screenshots_manifest_csv,
-    build_summary_input_md,
     build_transcript_json,
     build_transcript_md,
+    find_speech_gaps,
 )
 from app.pipeline.silence import classify_segments
-from app.pipeline.transcriber import MockTranscriber, build_hotwords, get_transcriber
-from app.pipeline.zip_packaging import make_safe_stem, build_zip
+from app.pipeline.subtitles import parse_vtt
+from app.pipeline.transcriber import (
+    MockTranscriber,
+    TranscriptSegment,
+    build_hotwords,
+    get_transcriber,
+)
+from app.pipeline.url_source import UrlProbe, download_url
+from app.pipeline.zip_packaging import build_zip, make_safe_stem
+
+logger = structlog.get_logger()
+
+StageCallback = Callable[[str], None]
+
+
+def _transcribe(
+    job: Job,
+    input_path: Path,
+    staging_dir: Path,
+    title: str,
+    language_hint: str | None,
+) -> tuple[list[TranscriptSegment], str, str | None]:
+    """Whisper (or the CI mock). Returns (segments, transcript_source, language)."""
+    transcriber = get_transcriber(
+        language=job.language or language_hint,
+        hotwords=build_hotwords(settings.whisper_glossary, job.glossary, title),
+    )
+    audio_path = staging_dir / "audio.wav"
+    if isinstance(transcriber, MockTranscriber):
+        audio_path.write_bytes(b"")
+        source = "mock"
+    else:
+        extract_audio(str(input_path), audio_path)
+        source = f"whisper:{settings.whisper_model}"
+    segments = transcriber.transcribe(str(audio_path))
+    audio_path.unlink(missing_ok=True)
+    language = job.language or getattr(transcriber, "detected_language", None) or language_hint
+    return segments, source, language
 
 
 def run_media_pipeline(
@@ -39,19 +78,11 @@ def run_media_pipeline(
     prober: MediaProber,
     frame_selector: FrameSelector,
     fallback_selector: FrameSelector | None = None,
+    on_stage: StageCallback | None = None,
 ) -> Path:
-    """Orchestrate the output pipeline. Returns absolute path to produced ZIP.
+    """Orchestrate the package build. Returns absolute path to the produced ZIP."""
+    notify = on_stage or (lambda stage: None)
 
-    Steps:
-    1. Resolve and validate job.input_path under upload_dir; otherwise MediaError.
-    2. span = job.duration_seconds (defensive: probe in the worker if None).
-    3. timestamps = screenshot_timestamps(span) — single source of truth.
-    4. frames = extractor.extract(input, staging/screenshots, timestamps).
-    5. Manifest built from the same timestamps list (invariant by construction).
-    6. Transcription: MockTranscriber (real transcription is M010).
-    7. build_zip with screenshots_dir and screenshot_count=len(frames).
-    8. try/finally staging cleanup.
-    """
     upload_dir = Path(settings.upload_dir).resolve()
     input_path = Path(job.input_path).resolve()
     if not input_path.is_relative_to(upload_dir):
@@ -64,77 +95,102 @@ def run_media_pipeline(
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        # Step 2: real span — trusted from upload-time probe, else probe now
-        if job.duration_seconds is not None:
+        probe: UrlProbe | None = None
+        subtitle_path: Path | None = None
+        subtitle_lang: str | None = None
+
+        if job.source_type == "url":
+            notify("downloading")
+            download = download_url(
+                job.source_url,
+                input_path,
+                staging_dir,
+                job.language,
+                settings.max_upload_bytes,
+            )
+            probe = download.probe
+            subtitle_path, subtitle_lang = download.subtitle_path, download.subtitle_lang
+            span = prober.probe_duration(str(input_path))  # the file we actually got
+        elif job.duration_seconds is not None:
             span = float(job.duration_seconds)
         else:
             span = prober.probe_duration(str(input_path))
 
-        # Steps 3-4: frame selection (crv scene-change, fixed-interval fallback);
-        # the selected seconds drive the manifest (invariant by construction)
-        screenshots_dir = staging_dir / "screenshots"
-        frames, _frames_mode = select_frames(
-            frame_selector, fallback_selector, str(input_path), screenshots_dir, span
+        title = probe.title if probe else Path(job.original_filename).stem or "video"
+
+        notify("frames")
+        frames_dir = staging_dir / "frames"
+        frames, frames_mode = select_frames(
+            frame_selector, fallback_selector, str(input_path), frames_dir, span
         )
-        timestamps = [frame.second for frame in frames]
+        frame_seconds = [frame.second for frame in frames]
 
-        # Step 6: transcription (ADR 006) — real 16 kHz audio for whisper
-        audio_path = staging_dir / "audio.wav"
-        transcriber = get_transcriber(hotwords=build_hotwords(settings.whisper_glossary))
-        if isinstance(transcriber, MockTranscriber):
-            audio_path.write_bytes(b"")
-        else:
-            extract_audio(str(input_path), audio_path)
-        all_segments = transcriber.transcribe(str(audio_path))
+        notify("transcribing")
+        all_segments: list[TranscriptSegment] = []
+        transcript_source = ""
+        language = None
+        if subtitle_path is not None:
+            all_segments = parse_vtt(subtitle_path.read_text(encoding="utf-8", errors="replace"))
+            transcript_source, language = "manual_subtitles", subtitle_lang
+            if not all_segments:
+                logger.warning("subtitles_empty_using_whisper", job_id=str(job.id), stage="transcribing")
+                subtitle_path = None
+        if subtitle_path is None:
+            all_segments, transcript_source, language = _transcribe(
+                job, input_path, staging_dir, title, probe.language if probe else None
+            )
 
+        notify("packaging")
         active_segments, silent_segments = classify_segments(all_segments)
-
-        processed_at = datetime.now(tz=timezone.utc)
-
-        transcript_md = build_transcript_md(active_segments)
-        transcript_json = build_transcript_json(active_segments)
-        summary_input_md = build_summary_input_md(
-            active_segments,
-            original_filename=job.original_filename,
-            duration_seconds=span,
-            processed_at=processed_at,
+        # make_safe_stem works on a file name; the ".x" keeps dots inside a title
+        safe_stem = make_safe_stem(
+            f"{title}.x" if probe else job.original_filename, Path(job.stored_filename).stem
         )
-        screenshots_manifest_csv_str = build_screenshots_manifest_csv(
-            all_segments,
-            timestamps=timestamps,
-        )
-        failed_parts_md = build_failed_parts_md(silent_segments)
-        metadata_json = build_metadata_json(
+        info = PackageInfo(
             job_id=str(job.id),
+            title=title,
             original_filename=job.original_filename,
             stored_filename=job.stored_filename,
+            source_type=job.source_type or "file",
+            source_url=job.source_url,
+            channel=probe.channel if probe else None,
             duration_seconds=span,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=len(frames),
+            language=language,
+            chapters=probe.chapters if probe else [],
+            processed_at=datetime.now(tz=timezone.utc),
+            transcript_source=transcript_source,
+            frames_mode=frames_mode,
+            subtitles_filename=subtitle_path.name if subtitle_path else None,
         )
-
-        fallback = Path(job.stored_filename).stem
-        safe_stem = make_safe_stem(job.original_filename, fallback)
-
-        # screenshots_dir may not exist when timestamps is empty (span <= 0)
-        screenshots_dir.mkdir(parents=True, exist_ok=True)
+        speech_gaps = find_speech_gaps(active_segments, span)
 
         zip_path = build_zip(
             output_dir=output_dir,
             safe_stem=safe_stem,
-            ts=processed_at,
-            transcript_md=transcript_md,
-            transcript_json=transcript_json,
-            summary_input_md=summary_input_md,
-            screenshots_manifest_csv=screenshots_manifest_csv_str,
-            failed_parts_md=failed_parts_md,
-            metadata_json=metadata_json,
-            screenshot_count=len(frames),
-            screenshots_dir=screenshots_dir,
+            ts=info.processed_at,
+            readme_md=build_readme_md(
+                info, len(frames), has_failed_parts=bool(speech_gaps or silent_segments)
+            ),
+            transcript_md=build_transcript_md(active_segments, frame_seconds, info),
+            transcript_json=build_transcript_json(active_segments),
+            frames_manifest_csv=build_screenshots_manifest_csv(all_segments, timestamps=frame_seconds),
+            failed_parts_md=build_failed_parts_md(silent_segments, speech_gaps),
+            metadata_json=build_metadata_json(
+                info, all_segments, silent_segments, len(frames), safe_stem
+            ),
+            frames_dir=frames_dir,
+            frame_count=len(frames),
+            subtitles_path=subtitle_path,
         )
-
+        logger.info(
+            "package_built",
+            job_id=str(job.id),
+            stage="packaging",
+            frames=len(frames),
+            frames_mode=frames_mode,
+            transcript_source=transcript_source,
+            segments=len(active_segments),
+        )
         return zip_path
 
     finally:

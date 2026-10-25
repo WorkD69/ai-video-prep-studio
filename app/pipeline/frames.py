@@ -46,10 +46,6 @@ def frame_budget(duration: float) -> int:
     return min(settings.max_frames, max(settings.min_frames, wanted))
 
 
-def frame_filename(second: int) -> str:
-    return f"frame_{second:06d}s.jpg"
-
-
 class FixedIntervalFrameSelector:
     """One frame every 20 s via a ScreenshotExtractor (the M009 behaviour)."""
 

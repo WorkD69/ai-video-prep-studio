@@ -1,19 +1,14 @@
-"""Integration tests for ZIP packaging (Milestone 004, Task 3).
+"""Integration tests for ZIP packaging — LLM package v2 (ADR 006).
 
 Covers:
 - make_safe_stem sanitization (path traversal, unicode, spaces, overlong)
 - make_zip_filename format
-- build_zip contents and invariants
-- run_mock_output_pipeline end-to-end + staging cleanup
+- build_zip contents, frame invariant, subtitles, entry-name safety
 """
 
-import json
 import re
 import zipfile
 from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import MagicMock
-from uuid import uuid4
 
 import pytest
 
@@ -29,28 +24,29 @@ from app.pipeline.zip_packaging import (
 # ---------------------------------------------------------------------------
 
 
-def make_mock_job():
-    job = MagicMock()
-    job.id = uuid4()
-    job.original_filename = "lecture.mp4"
-    job.stored_filename = f"{uuid4()}.mp4"
-    job.input_path = "/uploads/test.mp4"
-    job.video_size_bytes = None
-    job.duration_seconds = None
-    return job
-
-
 _FIXED_TS = datetime(2026, 6, 4, 10, 30, 0, tzinfo=timezone.utc)
 
-_MINIMAL_ZIP_KWARGS = dict(
-    transcript_md="# Transcript",
-    transcript_json="[]",
-    summary_input_md="# Summary",
-    screenshots_manifest_csv="frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id",
-    failed_parts_md="# Failed",
-    metadata_json="{}",
-    screenshot_count=0,
-)
+_FRAME_BYTES = b"\xff\xd8\xff\xe0REAL_FRAME\xff\xd9"
+
+
+def _make_frames(dir_path, seconds):
+    dir_path.mkdir(parents=True, exist_ok=True)
+    for sec in seconds:
+        (dir_path / f"frame_{sec:06d}s.jpg").write_bytes(_FRAME_BYTES)
+    return dir_path
+
+
+def _zip_kwargs(frames_dir, frame_count):
+    return dict(
+        readme_md="# Readme",
+        transcript_md="# Transcript",
+        transcript_json="[]",
+        frames_manifest_csv="frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id",
+        failed_parts_md="# Failed",
+        metadata_json="{}",
+        frames_dir=frames_dir,
+        frame_count=frame_count,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +76,12 @@ class TestMakeSafeStem:
     def test_unicode_replaced(self):
         result = make_safe_stem("лекция_001.mp4", "fallback")
         assert all(c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in result)
+
+    def test_cyrillic_transliterated(self):
+        assert make_safe_stem("Как за 50 минут освоить Claude.mp4", "fallback") == "Kak_za_50_minut_osvoit_Claude"
+
+    def test_underscore_runs_collapsed(self):
+        assert make_safe_stem("a  ++  b.mp4", "fallback") == "a_b"
 
     def test_spaces_replaced(self):
         result = make_safe_stem("my lecture video.mp4", "fallback")
@@ -150,255 +152,69 @@ class TestMakeZipFilename:
 
 
 class TestBuildZip:
-    def test_creates_zip_file(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            **_MINIMAL_ZIP_KWARGS,
-        )
-        assert zip_path.exists()
-        assert zip_path.suffix == ".zip"
-
-    def test_returns_absolute_path(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            **_MINIMAL_ZIP_KWARGS,
-        )
-        assert zip_path.is_absolute()
-
-    def test_all_required_entries_present(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            **_MINIMAL_ZIP_KWARGS,
-        )
-        required_entries = {
-            "transcript_full_global_timecodes.md",
-            "transcript_full_global_timecodes.json",
-            "lecture_summary_input.md",
-            "screenshots_manifest.csv",
-            "failed_or_silent_parts.md",
-            "metadata.json",
-        }
-        with zipfile.ZipFile(zip_path) as zf:
-            names = set(zf.namelist())
-        assert required_entries.issubset(names)
-        assert "screenshots/" in names
-
-    def test_screenshot_directory_with_correct_files(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=4,
-            transcript_md="# Transcript",
-            transcript_json="[]",
-            summary_input_md="# Summary",
-            screenshots_manifest_csv="header",
-            failed_parts_md="# Failed",
-            metadata_json="{}",
-        )
-        expected_screenshots = {
-            "screenshots/frame_000000s.jpg",
-            "screenshots/frame_000020s.jpg",
-            "screenshots/frame_000040s.jpg",
-            "screenshots/frame_000060s.jpg",
-        }
-        with zipfile.ZipFile(zip_path) as zf:
-            names = set(zf.namelist())
-        assert "screenshots/" in names
-        assert expected_screenshots.issubset(names)
-
-    def test_screenshot_count_zero_has_directory_but_no_files(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            **_MINIMAL_ZIP_KWARGS,
-        )
+    def test_creates_zip_with_v2_entries(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [0, 7, 125])
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, **_zip_kwargs(frames, 3))
+        assert zip_path.is_absolute() and zip_path.exists()
         with zipfile.ZipFile(zip_path) as zf:
             names = zf.namelist()
-        screenshot_files = [n for n in names if n.startswith("screenshots/") and n != "screenshots/"]
-        assert "screenshots/" in names
-        assert len(screenshot_files) == 0
+        assert names == [
+            "README.md", "transcript.md", "transcript.json", "frames_manifest.csv",
+            "failed_parts.md", "metadata.json", "frames/",
+            "frames/frame_000000s.jpg", "frames/frame_000007s.jpg", "frames/frame_000125s.jpg",
+        ]
 
-    def test_screenshot_placeholder_is_valid_jpeg(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=1,
-            transcript_md="# Transcript",
-            transcript_json="[]",
-            summary_input_md="# Summary",
-            screenshots_manifest_csv="header",
-            failed_parts_md="# Failed",
-            metadata_json="{}",
-        )
+    def test_documents_utf8(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [])
+        kwargs = _zip_kwargs(frames, 0)
+        kwargs["transcript_md"] = "# Привет"
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, **kwargs)
         with zipfile.ZipFile(zip_path) as zf:
-            data = zf.read("screenshots/frame_000000s.jpg")
-        # JPEG magic bytes
-        assert data[:2] == b"\xff\xd8"
-        assert data[-2:] == b"\xff\xd9"
+            assert zf.read("transcript.md").decode("utf-8") == "# Привет"
 
-    def test_zip_entry_names_are_fixed(self, tmp_path):
-        """ZIP entries must not contain user-controlled values (path safety)."""
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="__injected__path",
-            ts=_FIXED_TS,
-            **_MINIMAL_ZIP_KWARGS,
-        )
+    def test_frames_stored_uncompressed_with_real_bytes(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [20])
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, **_zip_kwargs(frames, 1))
         with zipfile.ZipFile(zip_path) as zf:
-            names = zf.namelist()
-        # None of the ZIP entry paths (not filename) should contain "injected"
-        for name in names:
-            assert "__injected__path" not in name
+            info = zf.getinfo("frames/frame_000020s.jpg")
+            assert info.compress_type == zipfile.ZIP_STORED
+            assert zf.read(info) == _FRAME_BYTES
 
+    def test_frame_count_mismatch_raises_without_partial_zip(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [0, 20])
+        with pytest.raises(ValueError, match="frame invariant"):
+            build_zip(tmp_path, "lecture", _FIXED_TS, **_zip_kwargs(frames, 3))
+        assert list(tmp_path.glob("*.zip")) == []
 
-# ---------------------------------------------------------------------------
-# Invariant: screenshot_count == manifest rows == screenshots/ files in ZIP
-# ---------------------------------------------------------------------------
-
-
-class TestScreenshotCountInvariant:
-    def test_screenshot_count_invariant_from_pipeline(self, tmp_path, monkeypatch):
-        """metadata.screenshot_count == manifest rows == files in screenshots/"""
-        import app.pipeline.mock_pipeline as mp
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        import csv
-        import io
-        from unittest.mock import MagicMock
-        from uuid import uuid4
-        job = MagicMock()
-        job.id = uuid4()
-        job.original_filename = "lecture.mp4"
-        job.stored_filename = f"{uuid4()}.mp4"
-        job.input_path = "/uploads/test.mp4"
-        job.video_size_bytes = None
-        job.duration_seconds = None
-
-        zip_path = mp.run_mock_output_pipeline(job)
-
+    def test_foreign_files_in_frames_dir_ignored(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [0])
+        (frames / "notes.txt").write_text("x")
+        (frames / "frame_1.jpg").write_bytes(b"x")
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, **_zip_kwargs(frames, 1))
         with zipfile.ZipFile(zip_path) as zf:
-            names = zf.namelist()
-            metadata = json.loads(zf.read("metadata.json"))
-            manifest_text = zf.read("screenshots_manifest.csv").decode()
-            screenshot_files = [n for n in names if n.startswith("screenshots/") and n != "screenshots/"]
+            assert [n for n in zf.namelist() if n.startswith("frames/frame_")] == ["frames/frame_000000s.jpg"]
 
-        manifest_rows = [r for r in csv.reader(io.StringIO(manifest_text))][1:]  # skip header
-
-        assert metadata["screenshot_count"] == len(manifest_rows) == len(screenshot_files)
-        assert metadata["screenshot_count"] == 4  # expected for MockTranscriber fixture (span 75s)
-
-
-# ---------------------------------------------------------------------------
-# run_mock_output_pipeline
-# ---------------------------------------------------------------------------
-
-
-class TestRunMockOutputPipeline:
-    def test_success_returns_existing_zip(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        job = make_mock_job()
-        zip_path = mp.run_mock_output_pipeline(job)
-
-        assert zip_path.exists()
-        assert zip_path.suffix == ".zip"
-
-    def test_staging_dir_cleaned_up_on_success(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        job = make_mock_job()
-        mp.run_mock_output_pipeline(job)
-
-        staging = tmp_path / "staging" / str(job.id)
-        assert not staging.exists()
-
-    def test_staging_dir_cleaned_up_on_failure(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-        from app.pipeline import mock_pipeline
-
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        # Force failure inside the try block by patching classify_segments
-        original_classify = mock_pipeline.classify_segments
-
-        def boom(segments):
-            raise RuntimeError("Simulated failure")
-
-        monkeypatch.setattr(mock_pipeline, "classify_segments", boom)
-
-        job = make_mock_job()
-        with pytest.raises(RuntimeError, match="Simulated failure"):
-            mp.run_mock_output_pipeline(job)
-
-        staging = tmp_path / "staging" / str(job.id)
-        assert not staging.exists()
-
-    def test_zip_contains_required_entries(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        job = make_mock_job()
-        zip_path = mp.run_mock_output_pipeline(job)
-
-        required_entries = {
-            "transcript_full_global_timecodes.md",
-            "transcript_full_global_timecodes.json",
-            "lecture_summary_input.md",
-            "screenshots_manifest.csv",
-            "failed_or_silent_parts.md",
-            "metadata.json",
-        }
+    def test_subtitles_added_at_root(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [0])
+        subs = tmp_path / "subtitles.ru.vtt"
+        subs.write_bytes(b"WEBVTT\n")
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, subtitles_path=subs, **_zip_kwargs(frames, 1))
         with zipfile.ZipFile(zip_path) as zf:
-            names = set(zf.namelist())
-        assert required_entries.issubset(names)
+            assert zf.read("subtitles.ru.vtt") == b"WEBVTT\n"
 
-    def test_zip_filename_format(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
+    def test_unexpected_subtitles_name_rejected(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [0])
+        bad = tmp_path / "evil.sh"
+        bad.write_text("x")
+        with pytest.raises(ValueError, match="subtitles"):
+            build_zip(tmp_path, "lecture", _FIXED_TS, subtitles_path=bad, **_zip_kwargs(frames, 1))
 
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
+    def test_missing_output_dir_raises(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [])
+        with pytest.raises(ValueError, match="output_dir"):
+            build_zip(tmp_path / "nope", "lecture", _FIXED_TS, **_zip_kwargs(frames, 0))
 
-        job = make_mock_job()
-        zip_path = mp.run_mock_output_pipeline(job)
-
-        pattern = r"^llm_analysis_package_.*_\d{8}_\d{6}\.zip$"
-        assert re.match(pattern, zip_path.name), f"Filename mismatch: {zip_path.name}"
-
-    def test_output_dir_created_if_missing(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-
-        nested_output = tmp_path / "nested" / "output"
-        monkeypatch.setattr(mp.settings, "output_dir", str(nested_output))
-
-        job = make_mock_job()
-        zip_path = mp.run_mock_output_pipeline(job)
-
-        assert zip_path.exists()
-
-    def test_metadata_has_correct_counts(self, tmp_path, monkeypatch):
-        import app.pipeline.mock_pipeline as mp
-
-        monkeypatch.setattr(mp.settings, "output_dir", str(tmp_path))
-
-        job = make_mock_job()
-        zip_path = mp.run_mock_output_pipeline(job)
-
-        with zipfile.ZipFile(zip_path) as zf:
-            metadata = json.loads(zf.read("metadata.json"))
-
-        # MockTranscriber gives 5 segments, 1 silent
-        assert metadata["total_segments"] == 5
-        assert metadata["silent_segments"] == 1
+    def test_zip_name(self, tmp_path):
+        frames = _make_frames(tmp_path / "frames", [])
+        zip_path = build_zip(tmp_path, "lecture", _FIXED_TS, **_zip_kwargs(frames, 0))
+        assert zip_path.name == "llm_analysis_package_lecture_20260604_103000.zip"

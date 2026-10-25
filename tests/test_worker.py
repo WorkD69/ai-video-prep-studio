@@ -357,3 +357,32 @@ def test_worker_pipeline_failure_marks_failed():
     assert job.status == JobStatus.failed
     assert job.error_message == "processing_failed"
     assert job.completed_at is not None
+
+
+# ---------------------------------------------------------------------------
+# ADR 006: failure codes and stage updates
+# ---------------------------------------------------------------------------
+
+
+def test_failure_code_known_errors_are_shown():
+    from app.pipeline.media import MediaError
+    from app.pipeline.url_source import UrlSourceError
+    from app.workers.process_job import _failure_code
+
+    assert _failure_code(UrlSourceError("download_failed")) == "download_failed"
+    assert _failure_code(MediaError("audio_extraction_failed")) == "audio_extraction_failed"
+    assert _failure_code(RuntimeError("secret /path/in/traceback")) == "processing_failed"
+
+
+def test_stage_updater_writes_and_survives_db_errors():
+    from app.workers.process_job import _stage_updater
+
+    db = MagicMock()
+    update_stage = _stage_updater(db, uuid4())
+    update_stage("frames")
+    assert db.execute.call_count == 1
+    db.commit.assert_called_once()
+
+    db.execute.side_effect = Exception("db down")
+    update_stage("transcribing")  # must not raise
+    db.rollback.assert_called_once()

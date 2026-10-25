@@ -1,18 +1,48 @@
 import time
-import structlog
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+
+import structlog
 from sqlalchemy import update
 
 from app.config import settings
 from app.database import SessionLocal
 from app.models.job import Job, JobStatus
 from app.pipeline.frames import get_frame_selectors
-from app.pipeline.media import get_media_prober
+from app.pipeline.media import MediaError, get_media_prober
 from app.pipeline.media_pipeline import run_media_pipeline
+from app.pipeline.url_source import UrlSourceError
 from app.services.cleanup import safe_delete
 
 logger = structlog.get_logger()
+
+
+def _stage_updater(db, job_id) -> Callable[[str], None]:
+    """Persist the pipeline stage for the status page (best effort)."""
+
+    def update_stage(stage: str) -> None:
+        try:
+            db.execute(
+                update(Job)
+                .where(Job.id == job_id, Job.status == JobStatus.processing)
+                .values(stage=stage)
+            )
+            db.commit()
+            logger.info("worker_stage", job_id=str(job_id), stage=stage)
+        except Exception as exc:
+            db.rollback()
+            logger.warning("worker_stage_write_failed", job_id=str(job_id), stage=stage,
+                           error_type=type(exc).__name__)
+
+    return update_stage
+
+
+def _failure_code(exc: Exception) -> str:
+    """Safe, known failure codes are shown to the user; anything else is generic."""
+    if isinstance(exc, (MediaError, UrlSourceError)):
+        return str(exc)
+    return "processing_failed"
 
 
 def process_job(job_id: str) -> None:
@@ -55,7 +85,13 @@ def process_job(job_id: str) -> None:
             raise RuntimeError("mock_processing_failure")
 
         frame_selector, fallback_selector = get_frame_selectors()
-        zip_path = run_media_pipeline(job, get_media_prober(), frame_selector, fallback_selector)
+        zip_path = run_media_pipeline(
+            job,
+            get_media_prober(),
+            frame_selector,
+            fallback_selector,
+            on_stage=_stage_updater(db, job.id),
+        )
 
         # Guarded success write: processing -> done
         result = db.execute(
@@ -74,7 +110,7 @@ def process_job(job_id: str) -> None:
         else:
             logger.info("worker_done", job_id=job_id, stage="worker")
 
-    except Exception:
+    except Exception as exc:
         if job is not None:
             try:
                 result = db.execute(
@@ -82,7 +118,7 @@ def process_job(job_id: str) -> None:
                     .where(Job.id == job.id, Job.status == JobStatus.processing)
                     .values(
                         status=JobStatus.failed,
-                        error_message="processing_failed",
+                        error_message=_failure_code(exc),
                         completed_at=datetime.utcnow(),
                     )
                 )

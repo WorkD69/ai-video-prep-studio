@@ -1,4 +1,4 @@
-"""Integration tests for app/pipeline/output_assembly.py.
+"""Integration tests for app/pipeline/output_assembly.py — LLM package v2 (ADR 006).
 
 Uses the locked MockTranscriber 5-segment fixture:
   - seg 0: (0.0-15.0)  active  "Hello and welcome to this lecture."
@@ -9,17 +9,21 @@ Uses the locked MockTranscriber 5-segment fixture:
 """
 
 import json
+import re
+from dataclasses import replace
 from datetime import datetime, timezone
 
 import pytest
 
 from app.pipeline.output_assembly import (
+    PackageInfo,
     build_failed_parts_md,
     build_metadata_json,
+    build_readme_md,
     build_screenshots_manifest_csv,
-    build_summary_input_md,
     build_transcript_json,
     build_transcript_md,
+    find_speech_gaps,
 )
 from app.pipeline.silence import classify_segments
 from app.pipeline.transcriber import MockTranscriber, TranscriptSegment
@@ -47,391 +51,206 @@ def silent_segments(all_segments: list[TranscriptSegment]) -> list[TranscriptSeg
 
 
 @pytest.fixture()
-def processed_at() -> datetime:
-    return datetime(2026, 6, 3, 12, 0, 0, tzinfo=timezone.utc)
+def info() -> PackageInfo:
+    return PackageInfo(
+        job_id="job-1",
+        title="Claude Code за 50 минут",
+        original_filename="Claude Code за 50 минут",
+        stored_filename="abc.mp4",
+        source_type="url",
+        source_url="https://www.youtube.com/watch?v=x",
+        channel="Some Channel",
+        duration_seconds=75.0,
+        language="ru",
+        chapters=[{"start": 0.0, "title": "Intro"}, {"start": 45.0, "title": "Next point"}],
+        processed_at=datetime(2026, 10, 25, 12, 0, 0, tzinfo=timezone.utc),
+        transcript_source="whisper:turbo",
+        frames_mode="scene_change",
+    )
 
 
 # ---------------------------------------------------------------------------
-# build_transcript_md
+# build_transcript_md — frames inline, chapters
 # ---------------------------------------------------------------------------
 
 
 class TestBuildTranscriptMd:
-    def test_contains_header(self, active_segments):
-        result = build_transcript_md(active_segments)
-        assert result.startswith("# Transcript")
+    def test_header_block(self, active_segments, info):
+        md = build_transcript_md(active_segments, [], info)
+        assert md.startswith("# Claude Code за 50 минут\n")
+        assert "- Source: https://www.youtube.com/watch?v=x" in md
+        assert "- Duration: 00:01:15" in md
+        assert "- Language: ru" in md
+        assert "whisper turbo" in md
 
-    def test_contains_all_four_active_texts(self, active_segments):
-        result = build_transcript_md(active_segments)
-        assert "Hello and welcome to this lecture." in result
-        assert "Today we will cover the main topic." in result
-        assert "Let us continue with the next point." in result
-        assert "Thank you for watching." in result
+    def test_contents_and_chapter_headings(self, active_segments, info):
+        md = build_transcript_md(active_segments, [], info)
+        assert "## Contents" in md
+        assert "- [00:00:45] Next point" in md
+        assert md.index("## 00:00:00 — Intro") < md.index("Hello and welcome")
+        assert md.index("Today we will cover") < md.index("## 00:00:45 — Next point")
+        assert md.index("## 00:00:45 — Next point") < md.index("Let us continue")
 
-    def test_excludes_silent_segment(self, active_segments):
-        result = build_transcript_md(active_segments)
-        # The silent segment has empty text; verify the 30-45s timecode block is absent
-        assert "00:00:30 - 00:00:45" not in result
+    def test_segments_timecoded_and_silent_excluded(self, active_segments, info):
+        md = build_transcript_md(active_segments, [], info)
+        assert "**[00:00:00–00:00:15]** Hello and welcome to this lecture." in md
+        assert len(re.findall(r"^\*\*\[", md, re.M)) == 4
 
-    def test_timecode_format(self, active_segments):
-        result = build_transcript_md(active_segments)
-        # First active segment
-        assert "## [00:00:00 - 00:00:15]" in result
-        assert "## [00:00:15 - 00:00:30]" in result
-        assert "## [00:00:45 - 00:01:00]" in result
-        assert "## [00:01:00 - 00:01:15]" in result
+    def test_frame_goes_after_the_segment_containing_it(self, active_segments, info):
+        md = build_transcript_md(active_segments, [5, 20], info)
+        hello = md.index("Hello and welcome")
+        frame5 = md.index("![00:00:05](frames/frame_000005s.jpg)")
+        today = md.index("Today we will cover")
+        frame20 = md.index("![00:00:20](frames/frame_000020s.jpg)")
+        assert hello < frame5 < today < frame20
 
-    def test_sorted_by_start_time(self, active_segments):
-        result = build_transcript_md(active_segments)
-        pos_first = result.index("00:00:00")
-        pos_second = result.index("00:00:15")
-        assert pos_first < pos_second
+    def test_frame_in_pause_goes_with_next_segment(self, active_segments, info):
+        md = build_transcript_md(active_segments, [35], info)  # 30-45 is the silent gap
+        assert md.index("Let us continue") < md.index("frame_000035s.jpg")
+        assert md.index("frame_000035s.jpg") < md.index("Thank you for watching")
 
-    def test_four_sections_present(self, active_segments):
-        result = build_transcript_md(active_segments)
-        assert result.count("## [") == 4
+    def test_frames_after_last_speech(self, active_segments, info):
+        info = replace(info, duration_seconds=120.0)
+        md = build_transcript_md(active_segments, [100], info)
+        assert md.index("## Frames after the last speech") < md.index("frame_000100s.jpg")
+
+    def test_every_frame_once(self, active_segments, info):
+        frames = [0, 5, 20, 35, 60, 74]
+        md = build_transcript_md(active_segments, frames + [20], info)
+        assert len(re.findall(r"!\[\d\d:\d\d:\d\d\]\(frames/frame_\d{6}s\.jpg\)", md)) == len(frames)
+
+    def test_no_speech_video(self, info):
+        md = build_transcript_md([], [0, 20], info)
+        assert "## Frames" in md
+        assert "No speech was recognised" in md
+        assert "frame_000020s.jpg" in md
+
+    def test_no_chapters_no_contents(self, active_segments, info):
+        md = build_transcript_md(active_segments, [], replace(info, chapters=[]))
+        assert "## Contents" not in md
+
+    def test_file_source_shows_filename(self, active_segments, info):
+        file_info = replace(info, source_type="file", source_url=None, original_filename="lecture.mp4")
+        assert "- Source: lecture.mp4" in build_transcript_md(active_segments, [], file_info)
 
 
 # ---------------------------------------------------------------------------
-# build_transcript_json
+# build_transcript_json (unchanged contract)
 # ---------------------------------------------------------------------------
 
 
 class TestBuildTranscriptJson:
-    def test_returns_valid_json(self, active_segments):
-        result = build_transcript_json(active_segments)
-        parsed = json.loads(result)
-        assert isinstance(parsed, list)
-
-    def test_four_entries(self, active_segments):
-        parsed = json.loads(build_transcript_json(active_segments))
-        assert len(parsed) == 4
-
-    def test_entry_fields(self, active_segments):
-        parsed = json.loads(build_transcript_json(active_segments))
-        entry = parsed[0]
-        assert "start" in entry
-        assert "end" in entry
-        assert "start_formatted" in entry
-        assert "end_formatted" in entry
-        assert "text" in entry
-
-    def test_first_entry_values(self, active_segments):
-        parsed = json.loads(build_transcript_json(active_segments))
-        first = parsed[0]
-        assert first["start"] == 0.0
-        assert first["end"] == 15.0
-        assert first["start_formatted"] == "00:00:00"
-        assert first["end_formatted"] == "00:00:15"
-        assert first["text"] == "Hello and welcome to this lecture."
-
-    def test_no_silent_segment(self, active_segments):
-        parsed = json.loads(build_transcript_json(active_segments))
-        starts = [e["start"] for e in parsed]
-        assert 30.0 not in starts
+    def test_entries(self, active_segments):
+        data = json.loads(build_transcript_json(active_segments))
+        assert len(data) == 4
+        assert data[0] == {
+            "start": 0.0, "end": 15.0, "start_formatted": "00:00:00",
+            "end_formatted": "00:00:15", "text": "Hello and welcome to this lecture.",
+        }
 
 
 # ---------------------------------------------------------------------------
-# build_summary_input_md
+# frames manifest (schema unchanged since M004)
 # ---------------------------------------------------------------------------
 
 
-class TestBuildSummaryInputMd:
-    def test_duration_none_shows_unknown(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        assert "Duration: unknown" in result
+class TestFramesManifestCsv:
+    def test_header_and_rows_from_timestamps(self):
+        csv_text = build_screenshots_manifest_csv([], timestamps=[0, 7, 125])
+        lines = csv_text.splitlines()
+        assert lines[0] == "frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id"
+        assert lines[1:] == [
+            "0,frame_000000s.jpg,0,00:00:00,chunk_001",
+            "1,frame_000007s.jpg,7,00:00:07,chunk_001",
+            "2,frame_000125s.jpg,125,00:02:05,chunk_001",
+        ]
 
-    def test_duration_float_shows_seconds(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=75.0,
-            processed_at=processed_at,
-        )
-        assert "Duration: 75 seconds" in result
-
-    def test_contains_filename(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        assert "File: lecture.mp4" in result
-
-    def test_processed_at_utc_iso8601(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        assert "Processed: 2026-06-03T12:00:00Z" in result
-
-    def test_contains_llm_instructions(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        assert "## Instructions for LLM" in result
-        assert "1. A concise summary" in result
-
-    def test_contains_full_transcript_section(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        assert "## Full Transcript" in result
-        assert "Hello and welcome to this lecture." in result
-
-    def test_no_top_level_transcript_header(self, active_segments, processed_at):
-        result = build_summary_input_md(
-            active_segments,
-            original_filename="lecture.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-        )
-        # The "# Transcript" top-level header should NOT appear
-        assert "\n# Transcript\n" not in result
-        assert not result.startswith("# Transcript")
+    def test_span_fallback_every_20s(self, all_segments):
+        assert len(build_screenshots_manifest_csv(all_segments).splitlines()) == 5
 
 
 # ---------------------------------------------------------------------------
-# build_screenshots_manifest_csv
+# speech gaps + failed parts
 # ---------------------------------------------------------------------------
 
 
-class TestBuildScreenshotsManifestCsv:
-    def test_header_row(self, active_segments):
-        result = build_screenshots_manifest_csv(active_segments, duration_seconds=75.0)
-        first_line = result.splitlines()[0]
-        assert first_line == "frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id"
+class TestFindSpeechGaps:
+    def test_gap_between_segments_start_and_end(self):
+        segs = [
+            TranscriptSegment(40.0, 50.0, "a", 0.0),
+            TranscriptSegment(51.0, 60.0, "b", 0.0),
+            TranscriptSegment(100.0, 110.0, "c", 0.0),
+        ]
+        assert find_speech_gaps(segs, 200.0) == [(0.0, 40.0), (60.0, 100.0), (110.0, 200.0)]
 
-    def test_four_rows_for_75s_span(self, active_segments):
-        result = build_screenshots_manifest_csv(active_segments, duration_seconds=75.0)
-        # header + 4 data rows
-        data_rows = result.splitlines()[1:]
-        assert len(data_rows) == 4
+    def test_short_gaps_ignored(self, active_segments):
+        assert find_speech_gaps(active_segments, 75.0) == []  # 30-45 is only 15 s
 
-    def test_timestamps_0_20_40_60(self, active_segments):
-        result = build_screenshots_manifest_csv(active_segments, duration_seconds=75.0)
-        lines = result.splitlines()[1:]
-        timestamps = [int(line.split(",")[2]) for line in lines]
-        assert timestamps == [0, 20, 40, 60]
-
-    def test_filename_pattern(self, active_segments):
-        result = build_screenshots_manifest_csv(active_segments, duration_seconds=75.0)
-        lines = result.splitlines()[1:]
-        assert lines[0].split(",")[1] == "frame_000000s.jpg"
-        assert lines[1].split(",")[1] == "frame_000020s.jpg"
-        assert lines[2].split(",")[1] == "frame_000040s.jpg"
-        assert lines[3].split(",")[1] == "frame_000060s.jpg"
-
-    def test_chunk_id_in_rows(self, active_segments):
-        result = build_screenshots_manifest_csv(
-            active_segments, duration_seconds=75.0, chunk_id="chunk_001"
-        )
-        lines = result.splitlines()[1:]
-        for line in lines:
-            assert line.endswith("chunk_001")
-
-    def test_span_from_active_segments_when_no_duration(self, active_segments):
-        # active_segments max end = 75.0 → 4 screenshots
-        result = build_screenshots_manifest_csv(active_segments, duration_seconds=None)
-        data_rows = result.splitlines()[1:]
-        assert len(data_rows) == 4
-
-    def test_empty_segments_no_duration_yields_header_only(self):
-        result = build_screenshots_manifest_csv([], duration_seconds=None)
-        lines = result.splitlines()
-        assert len(lines) == 1  # header only
-
-
-# ---------------------------------------------------------------------------
-# build_failed_parts_md
-# ---------------------------------------------------------------------------
+    def test_no_speech_at_all(self):
+        assert find_speech_gaps([], 90.0) == [(0.0, 90.0)]
 
 
 class TestBuildFailedPartsMd:
-    def test_header_present(self, silent_segments):
-        result = build_failed_parts_md(silent_segments)
-        assert "# Failed or Silent Parts" in result
+    def test_rows_sorted_with_reasons(self, silent_segments):
+        md = build_failed_parts_md(silent_segments, [(100.0, 145.0)])
+        assert "| 00:00:30 | 00:00:45 | silent (no_speech_prob=0.85); empty text |" in md
+        assert "| 00:01:40 | 00:02:25 | no speech for 45 s — check the frames |" in md
+        assert md.index("00:00:30") < md.index("00:01:40")
 
-    def test_table_header_present(self, silent_segments):
-        result = build_failed_parts_md(silent_segments)
-        assert "| Global Start | Global End | Reason |" in result
-
-    def test_silent_segment_row(self, silent_segments):
-        result = build_failed_parts_md(silent_segments)
-        assert "| 00:00:30 | 00:00:45 |" in result
-
-    def test_exact_reason_string(self, silent_segments):
-        result = build_failed_parts_md(silent_segments)
-        assert "silent (no_speech_prob=0.85); empty text" in result
-
-    def test_empty_silent_list_still_has_table_header(self):
-        result = build_failed_parts_md([])
-        assert "| Global Start | Global End | Reason |" in result
-        assert "|---|---|---|" in result
+    def test_empty(self):
+        assert "| — | — | none |" in build_failed_parts_md([], [])
 
 
 # ---------------------------------------------------------------------------
-# build_metadata_json
+# README for the agent
+# ---------------------------------------------------------------------------
+
+
+class TestBuildReadmeMd:
+    def test_lists_files_and_instructions(self, info):
+        md = build_readme_md(info, 42, has_failed_parts=True)
+        for name in ("transcript.md", "frames/", "frames_manifest.csv", "transcript.json",
+                     "failed_parts.md", "metadata.json"):
+            assert f"`{name}`" in md
+        assert "42 keyframes" in md
+        assert "start here" in md
+        assert "[00:14:33]" in md
+
+    def test_whisper_caveat_only_for_asr(self, info):
+        assert "speech recognition" in build_readme_md(info, 1, True)
+        manual = replace(info, transcript_source="manual_subtitles", subtitles_filename="subtitles.ru.vtt")
+        md = build_readme_md(manual, 1, True)
+        assert "misspelled" not in md
+        assert "`subtitles.ru.vtt`" in md
+        assert "author's subtitles" in md
+
+    def test_fixed_interval_wording(self, info):
+        md = build_readme_md(replace(info, frames_mode="fixed_20s"), 4, False)
+        assert "every 20 seconds" in md
+        assert "(none in this video)" in md
+
+
+# ---------------------------------------------------------------------------
+# metadata.json v2
 # ---------------------------------------------------------------------------
 
 
 class TestBuildMetadataJson:
-    def test_returns_valid_json(self, all_segments, active_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert isinstance(parsed, dict)
+    def test_fields(self, all_segments, silent_segments, info):
+        data = json.loads(build_metadata_json(info, all_segments, silent_segments, 9, "Claude_Code"))
+        assert data["package_version"] == 2
+        assert data["title"] == "Claude Code за 50 минут"
+        assert data["source_type"] == "url"
+        assert data["source_url"] == "https://www.youtube.com/watch?v=x"
+        assert data["transcript_source"] == "whisper:turbo"
+        assert data["frames_mode"] == "scene_change"
+        assert data["frame_count"] == 9
+        assert data["total_segments"] == 5
+        assert data["silent_segments"] == 1
+        assert data["chapters"][1] == {"start": 45.0, "title": "Next point"}
+        assert data["processed_at"] == "2026-10-25T12:00:00Z"
+        assert data["safe_stem"] == "Claude_Code"
 
-    def test_required_fields_present(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        required_fields = [
-            "job_id",
-            "original_filename",
-            "safe_filename",
-            "duration_seconds",
-            "processed_at",
-            "transcriber",
-            "model_size",
-            "total_segments",
-            "silent_segments",
-            "screenshot_count",
-            "chunk_count",
-        ]
-        for field in required_fields:
-            assert field in parsed, f"Missing field: {field}"
-
-    def test_counts(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["total_segments"] == 5
-        assert parsed["silent_segments"] == 1
-        assert parsed["screenshot_count"] == 4
-
-    def test_transcriber_and_model_defaults(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["transcriber"] == "MockTranscriber"
-        assert parsed["model_size"] == "mock"
-
-    def test_transcriber_and_model_custom(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-            transcriber="FasterWhisperTranscriber",
-            model_size="small",
-        )
-        parsed = json.loads(result)
-        assert parsed["transcriber"] == "FasterWhisperTranscriber"
-        assert parsed["model_size"] == "small"
-
-    def test_processed_at_utc_z_suffix(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["processed_at"] == "2026-06-03T12:00:00Z"
-
-    def test_duration_none(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["duration_seconds"] is None
-
-    def test_safe_filename(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["safe_filename"] == "uuid-abc.mp4"
-
-    def test_chunk_count_default(self, all_segments, silent_segments, processed_at):
-        result = build_metadata_json(
-            job_id="job-123",
-            original_filename="lecture.mp4",
-            stored_filename="uuid-abc.mp4",
-            duration_seconds=None,
-            processed_at=processed_at,
-            all_segments=all_segments,
-            silent_segments=silent_segments,
-            screenshot_count=4,
-        )
-        parsed = json.loads(result)
-        assert parsed["chunk_count"] == 1
+    def test_unicode_kept(self, all_segments, silent_segments, info):
+        raw = build_metadata_json(info, all_segments, silent_segments, 0, "x")
+        assert "Claude Code за 50 минут" in raw
