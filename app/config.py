@@ -34,6 +34,11 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = False
     # Host / Origin allowlist for the local tool (DNS-rebinding + CSRF guard)
     allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
+    allowed_origins: list[str] = ["http://localhost:8000", "http://127.0.0.1:8000"]
+    # Extra networks treated as public by the link SSRF guard. Needed behind a
+    # "fake-IP" VPN/proxy (Clash, sing-box TUN) that answers DNS with
+    # 198.18.0.0/15 addresses; the proxy then resolves the real host itself.
+    url_extra_allowed_networks: list[str] = []
 
     model_config = SettingsConfigDict(
         env_file=".env",

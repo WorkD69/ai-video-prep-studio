@@ -13,7 +13,7 @@ from app.pipeline.frames import get_frame_selectors
 from app.pipeline.media import MediaError, get_media_prober
 from app.pipeline.media_pipeline import run_media_pipeline
 from app.pipeline.url_source import UrlSourceError
-from app.services.cleanup import safe_delete
+from app.services.cleanup import delete_download_leftovers, safe_delete
 
 logger = structlog.get_logger()
 
@@ -148,4 +148,9 @@ def process_job(job_id: str) -> None:
                 logger.info("worker_input_cleaned", job_id=job_id, stage="worker")
             elif outcome == "missing":
                 logger.info("worker_input_already_gone", job_id=job_id, stage="worker")
+            delete_download_leftovers(
+                job.input_path,
+                Path(settings.upload_dir).resolve(),
+                log_context={"job_id": job_id, "stage": "worker"},
+            )
         db.close()

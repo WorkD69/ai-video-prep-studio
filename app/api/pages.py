@@ -49,6 +49,8 @@ async def status_page(
         video_size_bytes=job.video_size_bytes,
         created_at=job.created_at,
         error_message=job.error_message,
+        stage=job.stage,
+        source_type=job.source_type,
     )
     return templates.TemplateResponse(request, "status.html", {
         "job": job_response,
@@ -76,6 +78,8 @@ async def status_fragment(
         video_size_bytes=job.video_size_bytes,
         created_at=job.created_at,
         error_message=job.error_message,
+        stage=job.stage,
+        source_type=job.source_type,
     )
     return templates.TemplateResponse(request, "partials/status_card.html", {
         "job": job_response,

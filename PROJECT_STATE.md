@@ -7,62 +7,35 @@ milestone status, blockers, or next step changes.
 
 ## Updated
 
-2026-06-11
+2026-10-25
 
 ## Current State
 
 | Field | Value |
 |---|---|
-| Active branch | `feature/milestone-009-ffmpeg-probing-screenshots` |
-| Main branch | `main` includes M001-M008 plus ADR 005 / M009 spec (latest: PR #22 docs) |
-| Current task | M009 implemented; pending clean Security Agent + Codex Reviewer, then human merge |
-| Status | All tests green (254 passed); Docker/manual gate passed; NOT committed/pushed |
-| Blockers | None |
+| Active work | ADR 006 pivot (crv frames, real transcription, URL intake, package v2) — light mode |
+| Main branch | M001–M009 + ADR 006 docs (PR #23, #24) |
+| Pivot branches | stacked: gpu-worker → real-transcription → crv-frames → url-intake → llm-package → ui-url-form (merged via PRs #25+) |
+| Status | 353 tests green; Docker E2E passed (URL 51 min → 7 min, file → 12 min); security review fixed |
+| Blockers | None. Risk: Docker Desktop disk lives on C: (≈5 GB free) |
 
-## Recently Completed
+## Done (ADR 006)
 
-| Milestone / Task | PR | Status |
-|---|---:|---|
-| M001 - DB schema + project skeleton | #1 | Done |
-| M002 - Upload intake + job creation | #2, #3, #4 | Done |
-| M003 - RQ worker mock processing | #5, #6 | Done |
-| M004 - Media pipeline output assembly | #7, #8 | Done |
-| M005 spec - Download endpoint | #9 | Done |
-| Process state files | #10, #11 | Done |
-| GitHub Actions CI | #12 | Done |
-| M005 implementation - Download endpoint | #13 | Done |
-| M006 spec - Job status page | #15 | Done |
-| M006 implementation - Job status page | #16 | Done |
-| M007 spec - File retention + cleanup | #18 | Done |
-| M007 implementation - File retention + cleanup | #19 | Done |
-| ADR 004 + M008 spec - Session active-job limit | #20 | Done |
-| M008 implementation - Session active-job limit | #21 | Done |
-| ADR 005 + M009 spec - ffmpeg/ffprobe probing + screenshots | #22 | Done |
+- [x] GPU worker (faster-whisper turbo, CUDA wheels, nvidia runtime), one shared image, non-root
+- [x] Limits 3 h / 5 GiB; data on `DATA_DIR` (A:), HF cache mount
+- [x] Real transcription: author's manual subtitles → else whisper with hotwords (glossary + terms + title)
+- [x] Scene-change frames via crv (pinned git SHA, 2 isolated patches, canary), ffmpeg 20 s fallback
+- [x] URL intake (any yt-dlp site): SSRF guard at connect time, fake-IP proxy range configurable
+- [x] Package v2: README.md for the agent, transcript.md with chapters + inline frames, failed_parts gaps
+- [x] UI (RU): file / link tabs, language, terms, live stage
+- [x] CSRF (full Origin + Sec-Fetch-Site), TrustedHost, ports only 127.0.0.1:8000
+- [x] Security review (clean context): 0 Critical/High; 2 Medium + 5 Low fixed
 
-## MVP 1 Remaining Scope
+## Next (optional)
 
-- [x] GitHub Actions CI
-- [x] M005 implementation: `GET /download/{job_id}`
-- [x] M006: Job status page with HTMX polling
-- [x] M007: 24h file retention + cleanup
-- [x] M008 implementation: 1 active job per signed-cookie session
-- [x] Real ffmpeg screenshots (M009 — implemented on branch, pending review/merge)
-- [ ] Real faster-whisper transcription
-- [ ] Docker deploy hardening
-
-## Recommended Next Action
-
-Run the M009 review gates in clean contexts: Security Agent (subprocess + path handling) and Codex
-Reviewer (diff + AC1-AC19 only — no state files). After both pass and human sign-off, commit, push,
-and open the PR. faster-whisper stays M010, deploy hardening M011.
-
-## Known Technical Debt
-
-- `datetime.utcnow()` deprecation warnings remain deferred.
-- M009 intentional inconsistency until M010: transcript is the mock 0-75 s fixture while
-  screenshots/`duration_seconds` span the real duration (documented in the spec).
-- `app/pipeline/mock_pipeline.py` is no longer called by the worker (M009 uses
-  `run_media_pipeline`); kept with its tests until M010 decides its fate.
+- Move Docker Desktop disk image to A: (Settings → Resources → Advanced) — C: is nearly full.
+- Frames are the slowest stage (CPU decode, ~5 min per hour of 720p): NVDEC proxy if needed.
+- `datetime.utcnow()` deprecation warnings (pre-existing debt).
 
 ## Process Notes
 

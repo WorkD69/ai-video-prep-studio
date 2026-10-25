@@ -375,4 +375,6 @@ def get_job(job_id: UUID, db: Session = Depends(get_db)) -> JobStatusResponse:
         video_size_bytes=job.video_size_bytes,
         created_at=job.created_at,
         error_message=job.error_message,
+        stage=job.stage,
+        source_type=job.source_type,
     )

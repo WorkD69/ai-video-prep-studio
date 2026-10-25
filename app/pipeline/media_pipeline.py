@@ -40,7 +40,7 @@ from app.pipeline.transcriber import (
     build_hotwords,
     get_transcriber,
 )
-from app.pipeline.url_source import UrlProbe, download_url
+from app.pipeline.url_source import UrlProbe, UrlSourceError, download_url
 from app.pipeline.zip_packaging import build_zip, make_safe_stem
 
 logger = structlog.get_logger()
@@ -111,6 +111,8 @@ def run_media_pipeline(
             probe = download.probe
             subtitle_path, subtitle_lang = download.subtitle_path, download.subtitle_lang
             span = prober.probe_duration(str(input_path))  # the file we actually got
+            if span > settings.max_duration_seconds:
+                raise UrlSourceError("duration_limit_exceeded")  # site metadata understated it
         elif job.duration_seconds is not None:
             span = float(job.duration_seconds)
         else:
@@ -152,7 +154,7 @@ def run_media_pipeline(
             original_filename=job.original_filename,
             stored_filename=job.stored_filename,
             source_type=job.source_type or "file",
-            source_url=job.source_url,
+            source_url=(probe.webpage_url if probe and probe.webpage_url else job.source_url),
             channel=probe.channel if probe else None,
             duration_seconds=span,
             language=language,

@@ -1,3 +1,21 @@
+{% set stage_labels = {
+    "downloading": "Скачиваю видео…",
+    "frames": "Выбираю ключевые кадры…",
+    "transcribing": "Распознаю речь…",
+    "packaging": "Собираю ZIP…",
+} %}
+{% set error_labels = {
+    "download_failed": "Не удалось скачать видео по ссылке.",
+    "file_too_large": "Видео по ссылке больше 5 ГБ.",
+    "duration_limit_exceeded": "Видео по ссылке длиннее 3 часов.",
+    "forbidden_host": "Ссылка ведёт на локальный или приватный адрес.",
+    "unreadable_link": "Ссылка не читается: сайт не поддерживается или видео закрыто.",
+    "invalid_or_unreadable_media": "Файл не читается как видео.",
+    "screenshot_extraction_failed": "Не удалось извлечь кадры.",
+    "audio_extraction_failed": "Не удалось извлечь звук.",
+    "processing_failed": "Внутренняя ошибка обработки — подробности в логах воркера.",
+    "enqueue_failed": "Не удалось поставить задачу в очередь.",
+} %}
 {% if is_polling %}
 <div id="status-card"
      class="bg-white rounded-lg shadow-md p-8"
@@ -17,7 +35,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        <span>Preparing job…</span>
+        <span>Готовлю задачу…</span>
     </div>
 
     {% elif job.status.value == "queued" %}
@@ -26,7 +44,7 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        <span>Waiting in queue…</span>
+        <span>В очереди…</span>
     </div>
 
     {% elif job.status.value == "processing" %}
@@ -35,31 +53,39 @@
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
         </svg>
-        <span>Processing video…</span>
+        <span>{{ stage_labels.get(job.stage, "Обрабатываю видео…") }}</span>
     </div>
+    <p class="mt-3 text-xs text-gray-400">
+        Час видео обрабатывается примерно 15–30 минут. Страницу можно не обновлять.
+    </p>
 
     {% elif job.status.value == "done" %}
     <div class="flex items-center gap-3 text-green-600 mb-6">
         <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
-        <span class="font-semibold text-lg">Ready</span>
+        <span class="font-semibold text-lg">Готово</span>
     </div>
     <a href="/download/{{ job_id }}"
        class="inline-block bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
-        Download Package
+        Скачать ZIP
     </a>
+    <a href="/" class="inline-block ml-4 text-sm text-blue-600 hover:underline">Обработать ещё видео</a>
 
     {% elif job.status.value == "failed" %}
     <div class="flex items-center gap-3 text-red-600 mb-4">
         <svg class="h-6 w-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
-        <span class="font-semibold">Processing failed</span>
+        <span class="font-semibold">Обработка не удалась</span>
     </div>
     {% if job.error_message %}
-    <p class="text-sm text-red-500 mt-2 font-mono">{{ job.error_message }}</p>
+    {% if job.error_message in error_labels %}
+    <p class="text-sm text-red-600 mt-2">{{ error_labels[job.error_message] }}</p>
     {% endif %}
+    <p class="text-xs text-red-400 mt-1 font-mono">{{ job.error_message }}</p>
+    {% endif %}
+    <a href="/" class="inline-block mt-4 text-sm text-blue-600 hover:underline">← Попробовать ещё раз</a>
 
     {% endif %}
 
