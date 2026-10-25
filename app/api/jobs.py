@@ -49,6 +49,14 @@ def _429_response(request: Request, active: Job, session_id: str) -> HTMLRespons
     return resp
 
 
+def duration_limit_message() -> str:
+    """Safe user-facing text for the duration limit, derived from settings."""
+    minutes = settings.max_duration_seconds // 60
+    if minutes % 60 == 0:
+        return f"Video exceeds the {minutes // 60}-hour limit"
+    return f"Video exceeds the {minutes}-minute limit"
+
+
 def _upload_reject_response(
     request: Request, session_id: str, status_code: int, message: str
 ) -> HTMLResponse | JSONResponse:
@@ -125,7 +133,7 @@ async def upload_video(
             duration_seconds=duration,
         )
         return _upload_reject_response(
-            request, session_id, 422, "Video exceeds the 60-minute limit"
+            request, session_id, 422, duration_limit_message()
         )
 
     # --- Advisory xact lock: serialises same-session concurrent uploads ---

@@ -1,0 +1,9 @@
+# Heavy media stack — installed in Docker only (CI uses fakes/mocks). ADR 006.
+faster-whisper>=1.2.1
+# PyAV 16+ removed open(metadata_errors=...), which faster-whisper 1.2.x still passes:
+# audio decoding fails and the transcript silently disappears.
+av<16
+nvidia-cublas-cu12
+nvidia-cudnn-cu12>=9,<10
+# claude-real-video: audited commit only (security review 2026-10-25), never the PyPI build.
+claude-real-video @ https://github.com/HUANGCHIHHUNGLeo/claude-real-video/archive/ab4b9b2b23790f5d63a6d15165d3d8ba284c6023.tar.gz

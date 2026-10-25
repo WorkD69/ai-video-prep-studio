@@ -125,7 +125,7 @@ def test_duration_3601_rejected_422_json(duration_setup):
     response, mock_db, upload_dir, mock_queue = _post_upload(3601, duration_setup)
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "Video exceeds the 60-minute limit"
+    assert response.json()["detail"] == "Video exceeds the 1-hour limit"
     assert _files_in(upload_dir) == []          # file deleted
     assert len(mock_db._store) == 0             # no job row
     mock_queue.enqueue.assert_not_called()      # no enqueue
@@ -188,7 +188,7 @@ def test_htmx_duration_reject_renders_inline_fragment(duration_setup):
 
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("text/html")
-    assert "Video exceeds the 60-minute limit" in response.text
+    assert "Video exceeds the 1-hour limit" in response.text
     assert _files_in(upload_dir) == []
     assert len(mock_db._store) == 0
     assert "aivps_session" in response.cookies
