@@ -1,6 +1,7 @@
 services:
   app:
     build: .
+    image: ai-video-prep-studio:latest
     ports:
       - "127.0.0.1:8000:8000"
     environment:
@@ -17,7 +18,9 @@ services:
       - ${DATA_DIR:-./data}/outputs:/app/outputs
 
   worker:
-    build: .
+    # same image as app — built once (two parallel builds re-downloaded ~2 GB of CUDA wheels)
+    image: ai-video-prep-studio:latest
+    pull_policy: never
     command: rq worker default
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aivps
