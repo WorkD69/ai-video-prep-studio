@@ -392,3 +392,47 @@ class TestFfmpegScreenshotExtractor:
 
         with pytest.raises(MediaError, match="screenshot_extraction_failed"):
             FfmpegScreenshotExtractor().extract("/uploads/x.mp4", tmp_path / "shots", [0])
+
+
+# ---------------------------------------------------------------------------
+# extract_audio — subprocess mocked (ADR 006)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractAudio:
+    def test_safe_argv_16k_mono(self, monkeypatch, tmp_path):
+        from app.pipeline.media import extract_audio
+
+        wav = tmp_path / "a.wav"
+        calls = _patch_run(monkeypatch)
+        wav.write_bytes(b"RIFF")  # ffmpeg is mocked; pretend it wrote the file
+        assert extract_audio("/uploads/x.mp4", wav) == wav
+        cmd = calls["cmd"]
+        assert cmd[0] == "ffmpeg"
+        assert cmd[cmd.index("-i") + 1] == "/uploads/x.mp4"
+        assert cmd[cmd.index("-ar") + 1] == "16000"
+        assert cmd[cmd.index("-ac") + 1] == "1"
+        assert cmd[-1] == str(wav)
+        assert calls["kwargs"].get("shell", False) is False
+        assert calls["kwargs"].get("timeout") is not None
+
+    def test_nonzero_exit_raises(self, monkeypatch, tmp_path):
+        from app.pipeline.media import extract_audio
+
+        _patch_run(monkeypatch, returncode=1)
+        with pytest.raises(MediaError, match="audio_extraction_failed"):
+            extract_audio("/uploads/x.mp4", tmp_path / "a.wav")
+
+    def test_missing_output_raises(self, monkeypatch, tmp_path):
+        from app.pipeline.media import extract_audio
+
+        _patch_run(monkeypatch)
+        with pytest.raises(MediaError, match="audio_extraction_failed"):
+            extract_audio("/uploads/x.mp4", tmp_path / "a.wav")
+
+    def test_timeout_raises(self, monkeypatch, tmp_path):
+        from app.pipeline.media import extract_audio
+
+        _patch_run(monkeypatch, side_effect=subprocess.TimeoutExpired("ffmpeg", 1))
+        with pytest.raises(MediaError, match="audio_extraction_failed"):
+            extract_audio("/uploads/x.mp4", tmp_path / "a.wav")

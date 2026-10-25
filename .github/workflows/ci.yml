@@ -19,6 +19,8 @@ jobs:
       REDIS_URL: redis://localhost:6379/0
       SECRET_KEY: test-secret-key-for-ci
       MEDIA_BACKEND: fake
+      TRANSCRIBER_BACKEND: mock
+      FRAME_BACKEND: fake
 
     steps:
       - name: Check out repository

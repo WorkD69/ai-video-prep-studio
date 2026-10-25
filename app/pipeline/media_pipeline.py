@@ -19,6 +19,7 @@ from app.pipeline.media import (
     MediaError,
     MediaProber,
     ScreenshotExtractor,
+    extract_audio,
     screenshot_timestamps,
 )
 from app.pipeline.output_assembly import (
@@ -30,7 +31,7 @@ from app.pipeline.output_assembly import (
     build_transcript_md,
 )
 from app.pipeline.silence import classify_segments
-from app.pipeline.transcriber import MockTranscriber
+from app.pipeline.transcriber import MockTranscriber, build_hotwords, get_transcriber
 from app.pipeline.zip_packaging import make_safe_stem, build_zip
 
 
@@ -74,10 +75,13 @@ def run_media_pipeline(
         screenshots_dir = staging_dir / "screenshots"
         frames = extractor.extract(str(input_path), screenshots_dir, timestamps)
 
-        # Step 6: placeholder audio + MockTranscriber (M009; real is M010)
+        # Step 6: transcription (ADR 006) — real 16 kHz audio for whisper
         audio_path = staging_dir / "audio.wav"
-        audio_path.write_bytes(b"")
-        transcriber = MockTranscriber()
+        transcriber = get_transcriber(hotwords=build_hotwords(settings.whisper_glossary))
+        if isinstance(transcriber, MockTranscriber):
+            audio_path.write_bytes(b"")
+        else:
+            extract_audio(str(input_path), audio_path)
         all_segments = transcriber.transcribe(str(audio_path))
 
         active_segments, silent_segments = classify_segments(all_segments)

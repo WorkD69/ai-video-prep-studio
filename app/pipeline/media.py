@@ -157,6 +157,41 @@ class FfmpegScreenshotExtractor:
         return sorted(paths)
 
 
+def extract_audio(input_path: str, wav_path: Path) -> Path:
+    """Extract a 16 kHz mono WAV for whisper. Raises MediaError on failure."""
+    wav_path.parent.mkdir(parents=True, exist_ok=True)
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-i",
+        input_path,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-f",
+        "wav",
+        str(wav_path),
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            shell=False,
+            capture_output=True,
+            timeout=_FFMPEG_TIMEOUT_SECONDS,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        raise MediaError("audio_extraction_failed")
+
+    if proc.returncode != 0 or not wav_path.exists():
+        raise MediaError("audio_extraction_failed")
+    return wav_path
+
+
 class FakeMediaProber:
     """Deterministic prober for CI/tests — returns the configured duration."""
 
