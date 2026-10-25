@@ -1,23 +1,73 @@
 {% extends "base.html" %}
 {% block content %}
+{% macro options_fields(prefix) %}
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div>
+        <label for="{{ prefix }}-language" class="block text-sm font-medium text-gray-700 mb-2">Язык речи</label>
+        <select id="{{ prefix }}-language" name="language"
+                class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm">
+            <option value="auto" selected>Авто</option>
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+            <option value="uk">Українська</option>
+            <option value="de">Deutsch</option>
+            <option value="fr">Français</option>
+            <option value="es">Español</option>
+            <option value="it">Italiano</option>
+            <option value="pt">Português</option>
+            <option value="pl">Polski</option>
+            <option value="tr">Türkçe</option>
+            <option value="zh">中文</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+        </select>
+    </div>
+    <div class="sm:col-span-2">
+        <label for="{{ prefix }}-terms" class="block text-sm font-medium text-gray-700 mb-2">
+            Термины <span class="font-normal text-gray-400">(необязательно)</span>
+        </label>
+        <input id="{{ prefix }}-terms" type="text" name="terms" maxlength="500"
+               placeholder="Cowork, Ultracode, Supabase"
+               class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+        <p class="mt-1 text-xs text-gray-400">Названия, которые whisper должен писать правильно.</p>
+    </div>
+</div>
+{% endmacro %}
+
 <div class="bg-white rounded-lg shadow-md p-8">
     <h1 class="text-3xl font-bold text-gray-800 mb-2">AI Video Prep Studio</h1>
-    <p class="text-gray-500 mb-8">Upload a video to generate an LLM-ready analysis package.</p>
+    <p class="text-gray-500 mb-6">
+        Видео → ZIP для AI-агента: транскрипт с таймкодами, ключевые кадры прямо в тексте, главы.
+        До 3 часов и 5 ГБ.
+    </p>
 
-    <form hx-post="/jobs/upload"
+    <div class="flex gap-2 mb-6 border-b border-gray-200" role="tablist">
+        <button type="button" id="tab-file" role="tab" aria-selected="true" data-tab="file"
+                class="tab-btn -mb-px border-b-2 border-blue-600 px-4 py-2 text-sm font-semibold text-blue-700">
+            Файл
+        </button>
+        <button type="button" id="tab-url" role="tab" aria-selected="false" data-tab="url"
+                class="tab-btn -mb-px border-b-2 border-transparent px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700">
+            Ссылка
+        </button>
+    </div>
+
+    <form id="panel-file" class="tab-panel"
+          hx-post="/jobs/upload"
           hx-encoding="multipart/form-data"
           hx-indicator="#upload-spinner"
           hx-ext="response-targets"
           hx-target-400="#upload-error"
+          hx-target-413="#upload-error"
+          hx-target-415="#upload-error"
           hx-target-422="#upload-error"
           hx-target-429="#upload-error">
         <div class="mb-6">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-                Video file (MP4, WebM, MKV — max 500 MB)
+            <label for="file-input" class="block text-sm font-medium text-gray-700 mb-2">
+                Видеофайл (MP4, WebM, MKV, MOV — до 5 ГБ, до 3 часов)
             </label>
-            <input type="file"
-                   name="file"
-                   accept="video/mp4,video/webm,video/x-matroska"
+            <input id="file-input" type="file" name="file" required
+                   accept="video/mp4,video/webm,video/x-matroska,video/quicktime"
                    class="block w-full text-sm text-gray-500
                           file:mr-4 file:py-2 file:px-4
                           file:rounded file:border-0
@@ -26,16 +76,65 @@
                           hover:file:bg-blue-100">
         </div>
 
+        {{ options_fields("file") }}
+
         <button type="submit"
                 class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
-            Upload &amp; Process
+            Загрузить и обработать
         </button>
-
-        <div id="upload-spinner" class="htmx-indicator mt-4 text-center text-gray-500 text-sm">
-            Uploading, please wait…
-        </div>
     </form>
+
+    <form id="panel-url" class="tab-panel hidden"
+          hx-post="/jobs/from-url"
+          hx-indicator="#upload-spinner"
+          hx-ext="response-targets"
+          hx-target-400="#upload-error"
+          hx-target-422="#upload-error"
+          hx-target-429="#upload-error">
+        <div class="mb-6">
+            <label for="url-input" class="block text-sm font-medium text-gray-700 mb-2">
+                Ссылка на видео (YouTube и другие сайты, которые понимает yt-dlp)
+            </label>
+            <input id="url-input" type="url" name="url" required
+                   placeholder="https://www.youtube.com/watch?v=…"
+                   class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+            <p class="mt-1 text-xs text-gray-400">
+                Если у видео есть субтитры автора на языке ролика — возьмём их, иначе распознаем речь.
+            </p>
+        </div>
+
+        {{ options_fields("url") }}
+
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
+            Обработать ссылку
+        </button>
+    </form>
+
+    <div id="upload-spinner" class="htmx-indicator mt-4 text-center text-gray-500 text-sm">
+        Отправляю, подожди…
+    </div>
 
     <div id="upload-error" class="mt-4"></div>
 </div>
+
+<script>
+    document.querySelectorAll(".tab-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            var tab = btn.dataset.tab;
+            document.querySelectorAll(".tab-btn").forEach(function (other) {
+                var active = other === btn;
+                other.setAttribute("aria-selected", active ? "true" : "false");
+                other.classList.toggle("border-blue-600", active);
+                other.classList.toggle("text-blue-700", active);
+                other.classList.toggle("border-transparent", !active);
+                other.classList.toggle("text-gray-500", !active);
+            });
+            document.querySelectorAll(".tab-panel").forEach(function (panel) {
+                panel.classList.toggle("hidden", panel.id !== "panel-" + tab);
+            });
+            document.getElementById("upload-error").innerHTML = "";
+        });
+    });
+</script>
 {% endblock %}

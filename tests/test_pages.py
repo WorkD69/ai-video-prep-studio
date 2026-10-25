@@ -369,3 +369,59 @@ def test_xss_filename_escaped():
     assert response.status_code == 200
     assert "<script>" not in response.text
     assert "&lt;script&gt;" in response.text
+
+
+# ---------------------------------------------------------------------------
+# ADR 006 UI: file + link forms, stage labels, readable errors
+# ---------------------------------------------------------------------------
+
+
+def test_index_has_file_and_link_forms_with_options():
+    client = _make_client()
+    try:
+        response = client.get("/")
+    finally:
+        _cleanup(client)
+
+    html = response.text
+    assert 'hx-post="/jobs/upload"' in html
+    assert 'hx-post="/jobs/from-url"' in html
+    assert 'name="url"' in html
+    assert html.count('name="language"') == 2
+    assert html.count('name="terms"') == 2
+    assert 'value="auto" selected' in html
+
+
+def test_fragment_processing_shows_stage_label():
+    job = _make_job(status=JobStatus.processing)
+    job.stage = "transcribing"
+    client = _make_client([job])
+    try:
+        response = client.get(f"/status/{job.id}/fragment")
+    finally:
+        _cleanup(client)
+
+    assert "Распознаю речь" in response.text
+
+
+def test_fragment_processing_without_stage_has_generic_label():
+    job = _make_job(status=JobStatus.processing)
+    client = _make_client([job])
+    try:
+        response = client.get(f"/status/{job.id}/fragment")
+    finally:
+        _cleanup(client)
+
+    assert "Обрабатываю видео" in response.text
+
+
+def test_fragment_failed_known_code_is_explained():
+    job = _make_job(status=JobStatus.failed, error_message="download_failed")
+    client = _make_client([job])
+    try:
+        response = client.get(f"/status/{job.id}/fragment")
+    finally:
+        _cleanup(client)
+
+    assert "Не удалось скачать видео" in response.text
+    assert "download_failed" in response.text

@@ -22,3 +22,5 @@ class JobStatusResponse(BaseModel):
     video_size_bytes: int | None
     created_at: datetime
     error_message: str | None
+    stage: str | None = None
+    source_type: str | None = None
