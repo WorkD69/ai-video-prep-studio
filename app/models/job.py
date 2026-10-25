@@ -40,3 +40,11 @@ class Job(Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    # ADR 006: link intake + per-job transcription options + progress stage
+    source_type: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="file", server_default="file"
+    )
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    language: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    glossary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stage: Mapped[str | None] = mapped_column(String(32), nullable=True)

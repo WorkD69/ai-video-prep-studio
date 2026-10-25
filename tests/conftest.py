@@ -10,6 +10,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 os.environ.setdefault("MEDIA_BACKEND", "fake")
 os.environ.setdefault("TRANSCRIBER_BACKEND", "mock")
 os.environ.setdefault("FRAME_BACKEND", "fake")
+os.environ.setdefault("ALLOWED_HOSTS", '["localhost", "127.0.0.1", "testserver"]')
 
 from app.main import app  # noqa: E402
 from app.database import get_db  # noqa: E402

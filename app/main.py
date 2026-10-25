@@ -4,6 +4,7 @@ from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.download import router as download_router
 from app.api.health import router as health_router
@@ -12,6 +13,7 @@ from app.api.pages import router as pages_router
 from app.config import settings
 from app.database import SessionLocal
 from app.services.cleanup import cleanup_expired_jobs
+from app.services.origin_guard import OriginGuardMiddleware
 
 structlog.configure(
     processors=[
@@ -69,6 +71,10 @@ async def lifespan(app_: FastAPI):
 
 
 app = FastAPI(title="AI Video Prep Studio", version="0.1.0", lifespan=lifespan)
+# Local tool (ADR 006): only localhost Host headers (DNS-rebinding guard) and
+# no cross-site state-changing requests (CSRF guard).
+app.add_middleware(OriginGuardMiddleware, allowed_hosts=settings.allowed_hosts)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 app.include_router(health_router)
 app.include_router(jobs_router)
 app.include_router(download_router)

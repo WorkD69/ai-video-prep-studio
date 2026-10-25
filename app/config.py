@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     session_cookie_name: str = "aivps_session"
     session_cookie_max_age: int = 2592000  # 30 days
     session_cookie_secure: bool = False
+    # Host / Origin allowlist for the local tool (DNS-rebinding + CSRF guard)
+    allowed_hosts: list[str] = ["localhost", "127.0.0.1"]
 
     model_config = SettingsConfigDict(
         env_file=".env",
