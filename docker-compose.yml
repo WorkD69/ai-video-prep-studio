@@ -1,8 +1,9 @@
 services:
   app:
     build: .
+    image: ai-video-prep-studio:latest
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aivps
       - REDIS_URL=redis://redis:6379/0
@@ -13,25 +14,37 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
-      - ./outputs:/app/outputs
+      - ${DATA_DIR:-./data}/uploads:/app/uploads
+      - ${DATA_DIR:-./data}/outputs:/app/outputs
 
   worker:
-    build: .
+    # same image as app — built once (two parallel builds re-downloaded ~2 GB of CUDA wheels)
+    image: ai-video-prep-studio:latest
+    pull_policy: never
     command: rq worker default
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/aivps
       - REDIS_URL=redis://redis:6379/0
       - RQ_REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-set-SECRET_KEY-env-var}
+      - HF_HOME=/hf-cache
+      - HF_HUB_DISABLE_SYMLINKS_WARNING=1
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     volumes:
-      - ./uploads:/app/uploads
-      - ./outputs:/app/outputs
+      - ${DATA_DIR:-./data}/uploads:/app/uploads
+      - ${DATA_DIR:-./data}/outputs:/app/outputs
+      - ${HF_CACHE_DIR:-./data/hf-cache}:/hf-cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   postgres:
     image: postgres:15-alpine
@@ -40,7 +53,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -52,7 +65,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s

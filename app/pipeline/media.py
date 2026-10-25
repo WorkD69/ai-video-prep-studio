@@ -20,7 +20,7 @@ from app.config import settings
 
 _SCREENSHOT_INTERVAL = 20  # seconds, locked
 _FFPROBE_TIMEOUT_SECONDS = 30
-_FFMPEG_TIMEOUT_SECONDS = 600  # own cap; rq_job_timeout also bounds the worker
+_FFMPEG_TIMEOUT_SECONDS = 3600  # own cap (3 h video, fallback path); rq_job_timeout also bounds the worker
 
 # Minimal valid 1x1 white JPEG — same placeholder bytes as zip_packaging
 _PLACEHOLDER_JPEG = (
