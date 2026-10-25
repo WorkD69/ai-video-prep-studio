@@ -28,6 +28,11 @@ _PLACEHOLDER_JPEG = (
 )
 
 
+def frame_filename(second: int) -> str:
+    """Locked frame naming: zero-padded second of the video."""
+    return f"frame_{second:06d}s.jpg"
+
+
 class MediaError(Exception):
     """Controlled media-processing failure with a safe, user-facing message."""
 

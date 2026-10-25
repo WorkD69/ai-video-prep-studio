@@ -22,8 +22,8 @@ from pathlib import Path
 import structlog
 
 from app.config import settings
-from app.pipeline.frames import Frame, frame_budget, frame_filename
-from app.pipeline.media import MediaError
+from app.pipeline.frames import Frame, frame_budget
+from app.pipeline.media import MediaError, frame_filename
 
 logger = structlog.get_logger()
 

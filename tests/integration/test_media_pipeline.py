@@ -1,18 +1,21 @@
-"""Integration tests for M009 media pipeline (fake seam, no ffmpeg).
+"""Integration tests for the v2 worker pipeline (ADR 006) — fakes only.
+
+No ffmpeg, no crv, no whisper, no network: FakeMediaProber, FakeFrameSelector,
+MockTranscriber (TRANSCRIBER_BACKEND=mock) and a patched download_url.
 
 Covers:
-- build_zip(..., screenshots_dir=...) with real frame files
-- M004 placeholder path (screenshots_dir=None) stays intact
-- run_media_pipeline invariant, staging cleanup, input path validation
+- package invariant: frames inlined in transcript.md == files == manifest rows
+- file vs URL jobs, author's subtitles vs whisper, empty-subtitles fallback
+- stage callbacks, hotwords, fallback frame selector, path validation, cleanup
 """
 
 import csv
 import io
 import json
 import os
+import re
 import zipfile
-from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -21,304 +24,269 @@ os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
 
-from app.pipeline.frames import FakeFrameSelector  # noqa: E402
-from app.pipeline.media import (  # noqa: E402
-    FakeMediaProber,
-    FakeScreenshotExtractor,
-    MediaError,
-)
-from app.pipeline.zip_packaging import build_zip  # noqa: E402
+from app.pipeline.frames import FakeFrameSelector, FixedIntervalFrameSelector  # noqa: E402
+from app.pipeline.media import FakeMediaProber, FakeScreenshotExtractor, MediaError  # noqa: E402
+from app.pipeline.transcriber import MockTranscriber  # noqa: E402
+from app.pipeline.url_source import UrlDownload, UrlProbe  # noqa: E402
 
-_FIXED_TS = datetime(2026, 6, 10, 10, 30, 0, tzinfo=timezone.utc)
+VTT = """WEBVTT
 
-_DOC_KWARGS = dict(
-    transcript_md="# Transcript",
-    transcript_json="[]",
-    summary_input_md="# Summary",
-    screenshots_manifest_csv="frame_index,filename,timestamp_seconds,timestamp_hhmmss,chunk_id",
-    failed_parts_md="# Failed",
-    metadata_json="{}",
-)
+00:00:01.000 --> 00:00:04.000
+Привет, это Claude Code.
 
-# Distinctive frame bytes — a "real" JPEG payload different from the placeholder
-_REAL_FRAME_BYTES = b"\xff\xd8\xff\xe0REAL_FRAME_CONTENT_BYTES\xff\xd9"
+00:00:30.000 --> 00:00:35.000
+Вторая глава.
+"""
 
 
-def _make_frames(dir_path, timestamps):
-    dir_path.mkdir(parents=True, exist_ok=True)
-    for sec in timestamps:
-        (dir_path / f"frame_{sec:06d}s.jpg").write_bytes(_REAL_FRAME_BYTES)
-
-
-# ---------------------------------------------------------------------------
-# build_zip with screenshots_dir
-# ---------------------------------------------------------------------------
-
-
-class TestBuildZipWithScreenshotsDir:
-    def test_adds_real_frame_files(self, tmp_path):
-        shots = tmp_path / "shots"
-        _make_frames(shots, [0, 20, 40])
-
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=3,
-            screenshots_dir=shots,
-            **_DOC_KWARGS,
-        )
-
-        with zipfile.ZipFile(zip_path) as zf:
-            names = set(zf.namelist())
-            data = zf.read("screenshots/frame_000020s.jpg")
-
-        assert {
-            "screenshots/frame_000000s.jpg",
-            "screenshots/frame_000020s.jpg",
-            "screenshots/frame_000040s.jpg",
-        }.issubset(names)
-        assert data == _REAL_FRAME_BYTES  # real bytes, not the placeholder
-
-    def test_count_mismatch_raises(self, tmp_path):
-        shots = tmp_path / "shots"
-        _make_frames(shots, [0, 20])
-
-        with pytest.raises(ValueError):
-            build_zip(
-                output_dir=tmp_path,
-                safe_stem="lecture",
-                ts=_FIXED_TS,
-                screenshot_count=3,  # invariant guard: 2 files != 3
-                screenshots_dir=shots,
-                **_DOC_KWARGS,
-            )
-
-    def test_count_mismatch_leaves_no_partial_zip(self, tmp_path):
-        shots = tmp_path / "shots"
-        _make_frames(shots, [0])
-
-        with pytest.raises(ValueError):
-            build_zip(
-                output_dir=tmp_path,
-                safe_stem="lecture",
-                ts=_FIXED_TS,
-                screenshot_count=5,
-                screenshots_dir=shots,
-                **_DOC_KWARGS,
-            )
-        assert list(tmp_path.glob("*.zip")) == []
-
-    def test_none_keeps_placeholder_behaviour(self, tmp_path):
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=2,
-            screenshots_dir=None,
-            **_DOC_KWARGS,
-        )
-
-        with zipfile.ZipFile(zip_path) as zf:
-            names = set(zf.namelist())
-            data = zf.read("screenshots/frame_000000s.jpg")
-
-        assert "screenshots/frame_000020s.jpg" in names
-        # placeholder path: tiny fixed JPEG
-        assert data[:2] == b"\xff\xd8"
-        assert data != _REAL_FRAME_BYTES
-
-    def test_zero_screenshots_with_empty_dir(self, tmp_path):
-        shots = tmp_path / "shots"
-        shots.mkdir()
-
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=0,
-            screenshots_dir=shots,
-            **_DOC_KWARGS,
-        )
-
-        with zipfile.ZipFile(zip_path) as zf:
-            names = zf.namelist()
-        frame_entries = [n for n in names if n.startswith("screenshots/") and n != "screenshots/"]
-        assert "screenshots/" in names
-        assert frame_entries == []
-
-    def test_works_with_fake_extractor_output(self, tmp_path):
-        """End-to-end seam: FakeScreenshotExtractor frames go into the ZIP."""
-        shots = tmp_path / "shots"
-        frames = FakeScreenshotExtractor().extract("/any.mp4", shots, [0, 20, 40, 60])
-
-        zip_path = build_zip(
-            output_dir=tmp_path,
-            safe_stem="lecture",
-            ts=_FIXED_TS,
-            screenshot_count=len(frames),
-            screenshots_dir=shots,
-            **_DOC_KWARGS,
-        )
-
-        with zipfile.ZipFile(zip_path) as zf:
-            names = [n for n in zf.namelist() if n.startswith("screenshots/frame_")]
-            sample = zf.read("screenshots/frame_000060s.jpg")
-
-        assert len(names) == 4
-        assert len(sample) > 0
-        assert sample[:2] == b"\xff\xd8"
-
-
-# ---------------------------------------------------------------------------
-# run_media_pipeline (fakes)
-# ---------------------------------------------------------------------------
-
-
-def _make_pipeline_job(upload_dir, duration_seconds=75.0):
-    """Job-like mock whose input file really exists under upload_dir."""
+def _make_job(upload_dir, *, source_type="file", duration_seconds=75.0, create_file=True):
+    """Job-like mock whose input path is a UUID name under upload_dir."""
     job = MagicMock()
     job.id = uuid4()
-    job.original_filename = "lecture.mp4"
+    job.original_filename = "lecture.mp4" if source_type == "file" else "Claude Code за 50 минут"
     stored = f"{uuid4()}.mp4"
     job.stored_filename = stored
     upload_dir.mkdir(parents=True, exist_ok=True)
     input_file = upload_dir / stored
-    input_file.write_bytes(b"\x00\x00\x00\x18ftypisom" + b"\x00" * 64)
+    if create_file:
+        input_file.write_bytes(b"\x00\x00\x00\x18ftypisom" + b"\x00" * 64)
     job.input_path = str(input_file)
-    job.video_size_bytes = input_file.stat().st_size
     job.duration_seconds = duration_seconds
+    job.source_type = source_type
+    job.source_url = "https://www.youtube.com/watch?v=x" if source_type == "url" else None
+    job.language = None
+    job.glossary = None
     return job
 
 
 @pytest.fixture
 def pipeline_env(tmp_path, monkeypatch):
-    """Point settings at tmp dirs for media_pipeline."""
+    """Point settings at tmp dirs; force the mock transcriber."""
     import app.pipeline.media_pipeline as mpl
+    import app.pipeline.transcriber as tr
 
     upload_dir = tmp_path / "uploads"
     output_dir = tmp_path / "outputs"
     monkeypatch.setattr(mpl.settings, "upload_dir", str(upload_dir))
     monkeypatch.setattr(mpl.settings, "output_dir", str(output_dir))
+    monkeypatch.setattr(tr.settings, "transcriber_backend", "mock")
     return upload_dir, output_dir
 
 
-class TestRunMediaPipeline:
-    def test_invariant_metadata_manifest_files(self, pipeline_env):
-        from app.pipeline.media_pipeline import run_media_pipeline
+def _fake_download(subtitles: str | None, chapters=None):
+    """Stand-in for download_url: writes the video (and subtitles) like yt-dlp would."""
 
-        upload_dir, output_dir = pipeline_env
-        job = _make_pipeline_job(upload_dir, duration_seconds=75.0)
+    def download(url, video_path, subtitles_dir, language, max_bytes):
+        video_path.write_bytes(b"\x00\x00\x00\x18ftypisom" + b"\x00" * 64)
+        sub_path = None
+        if subtitles is not None:
+            subtitles_dir.mkdir(parents=True, exist_ok=True)
+            sub_path = subtitles_dir / "subtitles.ru.vtt"
+            sub_path.write_bytes(subtitles.encode("utf-8"))
+        probe = UrlProbe(
+            title="Claude Code за 50 минут", duration=75.0, language="ru",
+            manual_subtitle_langs=["ru"] if subtitles is not None else [],
+            chapters=chapters or [], channel="Chan", webpage_url=url,
+        )
+        return UrlDownload(video_path=video_path, subtitle_path=sub_path,
+                           subtitle_lang="ru" if sub_path else None, probe=probe)
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
+    return download
 
-        with zipfile.ZipFile(zip_path) as zf:
-            names = zf.namelist()
-            metadata = json.loads(zf.read("metadata.json"))
-            manifest_text = zf.read("screenshots_manifest.csv").decode()
-            frame_entries = [n for n in names if n.startswith("screenshots/") and n != "screenshots/"]
 
-        manifest_rows = list(csv.reader(io.StringIO(manifest_text)))[1:]
-        assert metadata["screenshot_count"] == len(manifest_rows) == len(frame_entries) == 4
+def _read_zip(zip_path):
+    with zipfile.ZipFile(zip_path) as zf:
+        return {name: zf.read(name) for name in zf.namelist()}
+
+
+def _run(job, selector=None, fallback=None, on_stage=None, prober=None):
+    from app.pipeline.media_pipeline import run_media_pipeline
+
+    return run_media_pipeline(job, prober or FakeMediaProber(), selector or FakeFrameSelector(),
+                              fallback, on_stage=on_stage)
+
+
+# ---------------------------------------------------------------------------
+# file jobs
+# ---------------------------------------------------------------------------
+
+
+class TestFileJob:
+    def test_package_entries(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        files = _read_zip(_run(_make_job(upload_dir)))
+        for name in ("README.md", "transcript.md", "transcript.json", "frames_manifest.csv",
+                     "failed_parts.md", "metadata.json", "frames/"):
+            assert name in files
+        assert not any(name.startswith("subtitles.") for name in files)
+
+    def test_invariant_inline_frames_files_manifest_metadata(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        files = _read_zip(_run(_make_job(upload_dir, duration_seconds=75.0)))
+        frame_files = sorted(n.split("/", 1)[1] for n in files if n.startswith("frames/frame_"))
+        inline = sorted(re.findall(r"\(frames/(frame_\d{6}s\.jpg)\)", files["transcript.md"].decode()))
+        manifest = [row["filename"] for row in csv.DictReader(io.StringIO(files["frames_manifest.csv"].decode()))]
+        metadata = json.loads(files["metadata.json"])
+        assert frame_files == inline == sorted(manifest)
+        assert metadata["frame_count"] == len(frame_files) == 4  # fake: 0, 20, 40, 60
+
+    def test_metadata_describes_processing(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        metadata = json.loads(_read_zip(_run(_make_job(upload_dir)))["metadata.json"])
+        assert metadata["source_type"] == "file"
+        assert metadata["transcript_source"] == "mock"
+        assert metadata["frames_mode"] == "fake"
+        assert metadata["title"] == "lecture"
         assert metadata["duration_seconds"] == 75.0
 
-    def test_zip_frames_are_extractor_bytes(self, pipeline_env):
-        from app.pipeline.media_pipeline import run_media_pipeline
-
+    def test_zip_named_after_file(self, pipeline_env):
         upload_dir, _ = pipeline_env
-        job = _make_pipeline_job(upload_dir, duration_seconds=75.0)
-
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
-
-        with zipfile.ZipFile(zip_path) as zf:
-            data = zf.read("screenshots/frame_000000s.jpg")
-        assert len(data) > 0
-        assert data[:2] == b"\xff\xd8"
-        assert data[-2:] == b"\xff\xd9"
+        assert _run(_make_job(upload_dir)).name.startswith("llm_analysis_package_lecture_")
 
     def test_duration_none_probes_in_worker(self, pipeline_env):
-        """Defensive path: job.duration_seconds is None -> prober supplies span."""
-        from app.pipeline.media_pipeline import run_media_pipeline
-
         upload_dir, _ = pipeline_env
-        job = _make_pipeline_job(upload_dir, duration_seconds=None)
-
-        zip_path = run_media_pipeline(job, FakeMediaProber(duration=50.0), FakeFrameSelector())
-
-        with zipfile.ZipFile(zip_path) as zf:
-            metadata = json.loads(zf.read("metadata.json"))
+        job = _make_job(upload_dir, duration_seconds=None)
+        metadata = json.loads(_read_zip(_run(job, prober=FakeMediaProber(duration=50.0)))["metadata.json"])
         assert metadata["duration_seconds"] == 50.0
-        assert metadata["screenshot_count"] == 3  # 0, 20, 40
+        assert metadata["frame_count"] == 3
 
-    def test_short_video_one_screenshot(self, pipeline_env):
-        """AC16: < 20 s -> exactly one screenshot at 0 s, all counts consistent."""
-        from app.pipeline.media_pipeline import run_media_pipeline
+    def test_stages_reported(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        stages = []
+        _run(_make_job(upload_dir), on_stage=stages.append)
+        assert stages == ["frames", "transcribing", "packaging"]
+
+    def test_fallback_selector_used_when_primary_fails(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+
+        class Exploding:
+            mode = "scene_change"
+
+            def select(self, input_path, out_dir, duration):
+                raise RuntimeError("crv failed")
+
+        zip_path = _run(_make_job(upload_dir), selector=Exploding(),
+                        fallback=FixedIntervalFrameSelector(FakeScreenshotExtractor()))
+        metadata = json.loads(_read_zip(zip_path)["metadata.json"])
+        assert metadata["frames_mode"] == "fixed_20s"
+        assert metadata["frame_count"] == 4
+
+    def test_hotwords_include_glossary_job_terms_and_title(self, pipeline_env, monkeypatch):
+        import app.pipeline.media_pipeline as mpl
 
         upload_dir, _ = pipeline_env
-        job = _make_pipeline_job(upload_dir, duration_seconds=15.0)
+        monkeypatch.setattr(mpl.settings, "whisper_glossary", "Claude, MCP")
+        job = _make_job(upload_dir)
+        job.glossary = "Cowork"
+        job.language = "ru"
+        captured = {}
 
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
+        def fake_get_transcriber(language=None, hotwords=None):
+            captured.update(language=language, hotwords=hotwords)
+            return MockTranscriber()
 
-        with zipfile.ZipFile(zip_path) as zf:
-            names = zf.namelist()
-            metadata = json.loads(zf.read("metadata.json"))
-            manifest_text = zf.read("screenshots_manifest.csv").decode()
-            frame_entries = [n for n in names if n.startswith("screenshots/") and n != "screenshots/"]
+        monkeypatch.setattr(mpl, "get_transcriber", fake_get_transcriber)
+        _run(job)
+        assert captured == {"language": "ru", "hotwords": "Claude, MCP, Cowork, lecture"}
 
-        manifest_rows = list(csv.reader(io.StringIO(manifest_text)))[1:]
-        assert frame_entries == ["screenshots/frame_000000s.jpg"]
-        assert metadata["screenshot_count"] == len(manifest_rows) == 1
 
-    def test_input_path_outside_upload_dir_raises_media_error(self, pipeline_env, tmp_path):
-        from app.pipeline.media_pipeline import run_media_pipeline
+# ---------------------------------------------------------------------------
+# URL jobs
+# ---------------------------------------------------------------------------
 
+
+class TestUrlJob:
+    def test_author_subtitles_used(self, pipeline_env):
         upload_dir, _ = pipeline_env
-        job = _make_pipeline_job(upload_dir)
-        evil = tmp_path / "elsewhere" / "evil.mp4"
-        evil.parent.mkdir(parents=True, exist_ok=True)
-        evil.write_bytes(b"x")
-        job.input_path = str(evil)
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        chapters = [{"start": 0.0, "title": "Начало"}, {"start": 30.0, "title": "Глава 2"}]
+        with patch("app.pipeline.media_pipeline.download_url", side_effect=_fake_download(VTT, chapters)):
+            files = _read_zip(_run(job))
+        metadata = json.loads(files["metadata.json"])
+        transcript = files["transcript.md"].decode("utf-8")
+        assert metadata["transcript_source"] == "manual_subtitles"
+        assert metadata["language"] == "ru"
+        assert metadata["subtitles_file"] == "subtitles.ru.vtt"
+        assert metadata["source_url"] == "https://www.youtube.com/watch?v=x"
+        assert files["subtitles.ru.vtt"].decode("utf-8") == VTT
+        assert "Привет, это Claude Code." in transcript
+        assert transcript.index("## 00:00:00 — Начало") < transcript.index("## 00:00:30 — Глава 2")
+        assert "author's subtitles" in files["README.md"].decode("utf-8")
 
-        with pytest.raises(MediaError):
-            run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
+    def test_no_subtitles_falls_back_to_transcriber(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        with patch("app.pipeline.media_pipeline.download_url", side_effect=_fake_download(None)):
+            metadata = json.loads(_read_zip(_run(job))["metadata.json"])
+        assert metadata["transcript_source"] == "mock"
+        assert metadata["language"] == "ru"  # hint from the site metadata
+        assert metadata["channel"] == "Chan"
+
+    def test_empty_subtitles_fall_back_to_transcriber(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        with patch("app.pipeline.media_pipeline.download_url", side_effect=_fake_download("WEBVTT\n")):
+            files = _read_zip(_run(job))
+        assert json.loads(files["metadata.json"])["transcript_source"] == "mock"
+        assert "subtitles.ru.vtt" not in files
+
+    def test_stages_include_download(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        stages = []
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        with patch("app.pipeline.media_pipeline.download_url", side_effect=_fake_download(VTT)):
+            _run(job, on_stage=stages.append)
+        assert stages == ["downloading", "frames", "transcribing", "packaging"]
+
+    def test_downloads_to_job_input_path(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        download = MagicMock(side_effect=_fake_download(None))
+        with patch("app.pipeline.media_pipeline.download_url", download):
+            _run(job)
+        args = download.call_args.args
+        assert args[0] == job.source_url
+        assert str(args[1]) == str((upload_dir / job.stored_filename).resolve())
+
+    def test_zip_named_after_title(self, pipeline_env):
+        upload_dir, _ = pipeline_env
+        job = _make_job(upload_dir, source_type="url", create_file=False)
+        with patch("app.pipeline.media_pipeline.download_url", side_effect=_fake_download(None)):
+            zip_path = _run(job)
+        assert zip_path.name.startswith("llm_analysis_package_Claude_Code_za_50_minut_")
+
+
+# ---------------------------------------------------------------------------
+# safety + cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestSafety:
+    def test_input_path_outside_upload_dir_raises(self, pipeline_env, tmp_path):
+        upload_dir, _ = pipeline_env
+        job = _make_job(upload_dir)
+        outside = tmp_path / "elsewhere.mp4"
+        outside.write_bytes(b"x")
+        job.input_path = str(outside)
+        with pytest.raises(MediaError, match="invalid_or_unreadable_media"):
+            _run(job)
 
     def test_staging_cleaned_on_success(self, pipeline_env):
-        from app.pipeline.media_pipeline import run_media_pipeline
-
         upload_dir, output_dir = pipeline_env
-        job = _make_pipeline_job(upload_dir)
-
-        run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
-
+        job = _make_job(upload_dir)
+        _run(job)
         assert not (output_dir / "staging" / str(job.id)).exists()
 
     def test_staging_cleaned_on_failure(self, pipeline_env):
-        from app.pipeline.media_pipeline import run_media_pipeline
-
         upload_dir, output_dir = pipeline_env
-        job = _make_pipeline_job(upload_dir)
+        job = _make_job(upload_dir)
 
-        class ExplodingSelector:
-            mode = "exploding"
+        class Exploding:
+            mode = "scene_change"
 
             def select(self, input_path, out_dir, duration):
                 raise MediaError("screenshot_extraction_failed")
 
         with pytest.raises(MediaError):
-            run_media_pipeline(job, FakeMediaProber(), ExplodingSelector())
-
+            _run(job, selector=Exploding())
         assert not (output_dir / "staging" / str(job.id)).exists()
-
-    def test_transcriber_stays_mock(self, pipeline_env):
-        """AC14: metadata transcriber/model_size stay MockTranscriber/mock."""
-        from app.pipeline.media_pipeline import run_media_pipeline
-
-        upload_dir, _ = pipeline_env
-        job = _make_pipeline_job(upload_dir)
-
-        zip_path = run_media_pipeline(job, FakeMediaProber(), FakeFrameSelector())
-
-        with zipfile.ZipFile(zip_path) as zf:
-            metadata = json.loads(zf.read("metadata.json"))
-        assert metadata["transcriber"] == "MockTranscriber"
-        assert metadata["model_size"] == "mock"
