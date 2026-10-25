@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     output_dir: str = "./outputs"
     max_upload_bytes: int = 524288000  # 500 MB
+    max_duration_seconds: int = 3600  # 60-minute upload limit (strict >)
+    media_backend: str = "ffmpeg"  # "ffmpeg" (real) | "fake" (CI/tests)
     rq_queue_name: str = "default"
     rq_job_timeout: int = 600
     mock_processing_delay_seconds: int = 0

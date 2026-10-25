@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
@@ -307,7 +307,7 @@ def test_worker_deletes_input_on_success(tmp_path):
     fake_zip = tmp_path / "out.zip"
     fake_settings = _worker_settings(str(upload_dir))
 
-    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+    with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
             with patch("app.workers.process_job.settings", fake_settings):
                 process_job(str(job.id))
@@ -344,7 +344,7 @@ def test_worker_unclaimed_skip_does_not_delete_input(tmp_path):
 
     job = _make_worker_job(input_path=str(input_file))
     mock_db = WorkerMock(job)
-    mock_db.set_rowcounts(0)  # guarded transition missed — another worker claimed it
+    mock_db.set_rowcounts(0)  # guarded transition missed вЂ” another worker claimed it
 
     fake_settings = _worker_settings(str(upload_dir))
 
@@ -374,7 +374,7 @@ def test_worker_rejects_input_path_outside_upload_dir(tmp_path):
     from app.services.cleanup import safe_delete as real_safe_delete  # noqa: E402
 
     with patch("app.workers.process_job.safe_delete", wraps=real_safe_delete) as spy:
-        with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
             with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
                 with patch("app.workers.process_job.settings", fake_settings):
                     process_job(str(job.id))

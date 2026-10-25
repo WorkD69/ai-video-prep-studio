@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:5433/aivps")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-testing-only")
+os.environ.setdefault("MEDIA_BACKEND", "fake")
 
 from app.main import app  # noqa: E402
 from app.database import get_db  # noqa: E402

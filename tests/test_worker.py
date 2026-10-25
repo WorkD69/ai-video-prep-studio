@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
@@ -44,7 +44,7 @@ class WorkerMockSession:
 
     execute() applies the UPDATE values to the in-memory Job when rowcount > 0,
     so post-process_job assertions on job.status/error_message/completed_at
-    prove the production code actually emits the correct .values(…) clauses.
+    prove the production code actually emits the correct .values(вЂ¦) clauses.
     """
 
     def __init__(self, job=None):
@@ -117,7 +117,7 @@ def test_worker_happy_path_done():
     mock_db.set_rowcounts(1, 1)
 
     fake_zip = Path("/tmp/fake.zip")
-    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+    with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
             process_job(str(job.id))
 
@@ -135,7 +135,7 @@ def test_worker_picks_pending_or_queued():
         mock_db = WorkerMockSession(job)
         mock_db.set_rowcounts(1, 1)
 
-        with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+        with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
             with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
                 process_job(str(job.id))
 
@@ -218,7 +218,7 @@ def test_worker_filename_fail_trigger_disabled_by_default():
     })()
 
     fake_zip = Path("/tmp/fake.zip")
-    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+    with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
             with patch("app.workers.process_job.settings", fake_settings):
                 process_job(str(job.id))  # must NOT raise
@@ -274,12 +274,12 @@ def test_worker_success_guarded_does_not_overwrite_non_processing():
     mock_db._execute_side_effects = [None, simulate_race_failed]
 
     fake_zip = Path("/tmp/fake.zip")
-    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+    with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
             process_job(str(job.id))  # must NOT raise
 
     assert len(mock_db.execute_calls) == 2
-    # done was NOT written — existing failed state is preserved
+    # done was NOT written вЂ” existing failed state is preserved
     assert job.status == JobStatus.failed
     assert job.error_message == "external_failure"
     assert job.completed_at == race_dt
@@ -317,7 +317,7 @@ def test_worker_failure_guarded_does_not_overwrite_non_processing():
                 process_job(str(job.id))
 
     assert len(mock_db.execute_calls) == 2
-    # failed was NOT written — existing done state is preserved
+    # failed was NOT written вЂ” existing done state is preserved
     assert job.status == JobStatus.done
     assert job.error_message is None
     assert job.completed_at == race_dt
@@ -330,7 +330,7 @@ def test_worker_success_sets_output_path():
     mock_db.set_rowcounts(1, 1)
 
     fake_zip = Path("/tmp/output/llm_package.zip")
-    with patch("app.workers.process_job.run_mock_output_pipeline", return_value=fake_zip):
+    with patch("app.workers.process_job.run_media_pipeline", return_value=fake_zip):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):
             process_job(str(job.id))
 
@@ -341,13 +341,13 @@ def test_worker_success_sets_output_path():
 
 
 def test_worker_pipeline_failure_marks_failed():
-    """If run_mock_output_pipeline raises, job ends up failed and exception re-raised."""
+    """If run_media_pipeline raises, job ends up failed and exception re-raised."""
     job = make_job(JobStatus.queued)
     mock_db = WorkerMockSession(job)
     mock_db.set_rowcounts(1, 1)  # transition + failure write
 
     with patch(
-        "app.workers.process_job.run_mock_output_pipeline",
+        "app.workers.process_job.run_media_pipeline",
         side_effect=RuntimeError("pipeline_exploded"),
     ):
         with patch("app.workers.process_job.SessionLocal", return_value=mock_db):

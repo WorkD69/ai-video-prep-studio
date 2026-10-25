@@ -13,7 +13,29 @@ Before starting any session, read:
 
 ## Section 1 — Video Processing (FFmpeg)
 
-### Audio Extraction
+### Media backend selection (M009, ADR 005)
+
+Media tools live behind `MediaProber` / `ScreenshotExtractor` interfaces in
+`app/pipeline/media.py`, selected by the `MEDIA_BACKEND` env var:
+
+- `ffmpeg` (default) — real `FfprobeMediaProber` / `FfmpegScreenshotExtractor`
+- `fake` (CI/tests) — deterministic `FakeMediaProber` / `FakeScreenshotExtractor`, no binaries
+
+### Duration probing & enforcement (real since M009)
+
+Duration is probed with ffprobe **at upload time** (`app/api/jobs.py`), before
+the job is enqueued:
+
+```
+ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 <path>
+```
+
+- `> 3600 s` → 422, file deleted, no job (exactly 3600 is allowed, strict `>`)
+- unreadable/corrupt → 400, file deleted, no job
+- success → `duration_seconds` persisted on the job; the worker trusts it
+  (defensive re-probe only if `None`)
+
+### Audio Extraction (M010 — not yet wired)
 
 Extract audio from the input video file to a temporary WAV file:
 ```
@@ -22,20 +44,30 @@ ffmpeg -i input.mp4 -vn -acodec pcm_s16le -ar 16000 -ac 1 output.wav
 - 16 kHz mono WAV is the required format for faster-whisper
 - Use `subprocess.run()` with explicit argument list (no shell=True)
 - Validate ffprobe output before extraction
+- M009 still uses `MockTranscriber` on a placeholder audio file
 
-### Screenshot Extraction
+### Screenshot Extraction (real since M009)
 
-Extract one frame every 20 seconds:
+One single-pass ffmpeg run extracts a frame every 20 seconds
+(`FfmpegScreenshotExtractor`):
 ```
-ffmpeg -i input.mp4 -vf fps=1/20 -q:v 2 screenshots/frame_%06ds.jpg
+ffmpeg -hide_banner -loglevel error -i input.mp4 -vf fps=1/20:eof_action=pass -q:v 2 -f image2 <tmp>/raw_%06d.jpg
 ```
+
+`eof_action=pass` is required: with the default eof rounding ffmpeg emits
+`round(duration/20)` frames and drops the final 20 s slot (e.g. a 65 s video
+yields only 3 frames, no `frame_000060s`). Confirmed by the real-binary smoke
+test (`tests/integration/test_media_smoke.py`).
 
 Frame naming convention: `frame_NNNNNNs.jpg` (6-digit zero-padded second offset).
 Example: `frame_000020s.jpg`, `frame_000040s.jpg`, `frame_001320s.jpg`
 
-The `%06d` in ffmpeg is the frame number, not seconds — convert correctly:
-`actual_second = frame_number * 20`
-Rename files after extraction to match the `frame_NNNNNNs.jpg` pattern with actual seconds.
+The `%06d` in ffmpeg is the 1-based frame index, not seconds — convert correctly:
+`actual_second = (frame_index - 1) * 20`
+Frames are renamed to `frame_NNNNNNs.jpg` and **reconciled** against the shared
+`screenshot_timestamps(span)` list (`app/pipeline/media.py`) — the single source
+of truth for the manifest and the extractor. Extra trailing frames are dropped;
+a missing requested frame raises `MediaError("screenshot_extraction_failed")`.
 
 ### Video Splitting (Chunked Transcription)
 
