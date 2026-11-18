@@ -1,42 +1,28 @@
 # AI Handoff - AI Video Prep Studio
 
-Current session handoff. Overwrite this file before closing a session; do not append old
-history.
-
----
-
 ## Last Updated
+2026-11-07
 
-2026-10-25
+## Session
+Operational recovery and verification only. Existing checkout: C:\Users\Artem\Desktop\ai-video-prep-studio; branch main at f91ea10. No source/config/dependency changes, builds, pulls, migrations, or data cleanup were needed.
 
-## Role / Process Context
+Docker Desktop was installed but stopped. Started it without restarting Docker/WSL. Existing app, worker, postgres and redis containers automatically resumed; left running. Host free space: C: about 378 GB, A: about 30 GB.
 
-This session implemented the whole ADR 006 pivot in **light mode** (Artem asked to execute the
-approved plan end to end; plan copy: `tmp/plans/crv-pivot-plan.md`). Respond to Artem in Russian.
+## Verified
+- http://localhost:8000 renders; health reports status/db/redis ok.
+- PostgreSQL and Redis healthy; Alembic current is head f1c2d3e4a506.
+- RQ worker consumed the test job and completed it in 24.8 seconds.
+- NVIDIA RTX 3070 Laptop GPU exposed to worker; CUDA device count 1; existing turbo model cache available.
+- Effective backends: ffmpeg, faster_whisper turbo, crv.
+- Synthetic 18.4-second speech/video uploaded through browser UI. Job ac4eafc7-216d-48b3-822e-3e0e428a3b9b completed successfully.
+- ZIP download returned HTTP 200. CRC, expected v2 files, JSON, 19 JPEG frames, manifest rows and inline references checked. Download and host output SHA256 match.
+- Output: A:\aivps-data\outputs\llm_analysis_package_aivps-launch-check_20261107_132001.zip
+- Synthetic fixtures/download: C:\Users\Artem\Downloads\aivps-launch-check-20261107; browser-upload fixture also in task workspace.
+- Upload is removed after processing. ZIP expires 24 hours after job creation; cleanup interval 600 seconds. Actual passage of 24 hours was not tested.
+- URL intake and long/large videos were not tested. No personal videos were used.
 
-## What This Session Completed
+## Notes
+Startup emits nonblocking RQ/Click duplicate serializer option warnings. No application repair was necessary. Automatic opening of default Windows browser via shell was rejected by tool policy; browser automation successfully opened and exercised localhost.
 
-- Evaluated open-source alternatives; audited claude-real-video (crv) commit `ab4b9b2b…` (no
-  malware/telemetry/install-time code) and tested it on a real 51-min video.
-- ADR 006 + CLAUDE.md/ROADMAP (PR #24). M009 merged (PR #23).
-- Implementation (stacked branches, one per stage): GPU worker, faster-whisper transcriber + VTT
-  parser + audio extraction, crv frame selector with ffmpeg fallback, URL intake (yt-dlp API), LLM
-  package v2, Russian UI with stages, security-review fixes, fake-IP proxy setting.
-- Docker E2E on the real stack: URL job (manual subtitles, 31 chapters, 256 frames) 7 min; file
-  job (whisper turbo on GPU, hotwords fixed term spelling) 12 min; negative checks (foreign Origin,
-  localhost/compose/file:// links, foreign Host, Sec-Fetch-Site) all rejected.
-
-## Machine-specific facts (Artem's PC)
-
-- `.env` (gitignored): `DATA_DIR=A:/aivps-data`, `HF_CACHE_DIR=A:/AI/hf-cache`,
-  `URL_EXTRA_ALLOWED_NETWORKS=["198.18.0.0/15"]` — a fake-IP VPN/proxy makes every site resolve to
-  198.18.x.x inside Docker.
-- A native Windows PostgreSQL service listens on host port 5433 (not this project).
-- Docker Desktop disk (`docker_data.vhdx`, ~43 GB) is on C:, which has ≈5 GB free.
-- Another agent uses Docker Desktop in parallel (hackathon): never restart Docker / `wsl --shutdown`
-  / prune caches without asking.
-
-## Recommended Next Action
-
-Artem checks the two ZIPs in `A:\aivps-data\outputs` (deleted after 24 h) by giving one to an
-agent. Optional follow-ups are listed in `PROJECT_STATE.md`.
+## Next
+User opens http://localhost:8000, selects a video, clicks upload/process, waits for completion and downloads ZIP. Keep Docker Desktop running. Data mounts remain A:/aivps-data and A:/AI/hf-cache. Do not restart Docker/WSL or prune resources used by other projects.
