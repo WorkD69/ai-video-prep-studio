@@ -4,12 +4,14 @@ from pathlib import Path
 
 import structlog
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.download import router as download_router
 from app.api.health import router as health_router
 from app.api.jobs import router as jobs_router
 from app.api.pages import router as pages_router
+from app.api.pwa import STATIC_DIR, router as pwa_router
 from app.config import settings
 from app.database import SessionLocal
 from app.services.cleanup import cleanup_expired_jobs
@@ -79,3 +81,5 @@ app.include_router(health_router)
 app.include_router(jobs_router)
 app.include_router(download_router)
 app.include_router(pages_router)
+app.include_router(pwa_router)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
