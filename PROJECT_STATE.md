@@ -7,13 +7,14 @@ milestone status, blockers, or next step changes.
 
 ## Updated
 
-2026-10-25
+2026-11-19
 
 ## Current State
 
 | Field | Value |
 |---|---|
-| Active work | ADR 006 pivot (crv frames, real transcription, URL intake, package v2) — light mode |
+| Location | `C:\Users\Artem\Projects\ai-video-prep-studio` (moved from Desktop 2026-11-19) |
+| Active work | `feature/launcher-pwa`: Windows launcher + shortcuts, installable PWA (manifest, icons, favicon) |
 | Main branch | M001–M009 + ADR 006 docs (PR #23, #24) |
 | Pivot branches | stacked: gpu-worker → real-transcription → crv-frames → url-intake → llm-package → ui-url-form (merged via PRs #25+) |
 | Status | 353 tests green; Docker E2E passed (URL 51 min → 7 min, file → 12 min); security review fixed |
